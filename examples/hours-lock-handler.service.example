@@ -1,0 +1,12 @@
+[Unit]
+Description=Hours lock/unlock handler for GNOME
+After=graphical.target
+
+[Service]
+Type=simple
+ExecStart=%h/bin/hours-lock-handler-linux.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

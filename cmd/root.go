@@ -565,6 +565,44 @@ eg. hours active -t ' {{task}} ({{time}}) '
 		},
 	}
 
+	var stopQuiet bool
+
+	stopCmd := &cobra.Command{
+		Use:     "stop",
+		Short:   "Stop the currently active time tracking",
+		PreRunE: preRun,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			err := ui.StopTrackingCLI(db, os.Stdout, stopQuiet)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+			return nil
+		},
+	}
+
+	var startTaskID int
+
+	startCmd := &cobra.Command{
+		Use:     "start <task_id>",
+		Short:   "Start tracking a task by its ID",
+		Args:    cobra.ExactArgs(1),
+		PreRunE: preRun,
+		RunE: func(_ *cobra.Command, args []string) error {
+			_, err := fmt.Sscanf(args[0], "%d", &startTaskID)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: invalid task ID\n")
+				os.Exit(1)
+			}
+			err = ui.StartTrackingCLI(db, os.Stdout, startTaskID)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+			return nil
+		},
+	}
+
 	var err error
 	userHomeDir, err = os.UserHomeDir()
 	if err != nil {
@@ -609,6 +647,11 @@ eg. hours active -t ' {{task}} ({{time}}) '
 	activeCmd.Flags().StringVarP(&activeTemplate, "template", "t", ui.ActiveTaskPlaceholder, "string template to use for outputting active task")
 	activeCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
 
+	stopCmd.Flags().BoolVarP(&stopQuiet, "quiet", "q", false, "output only the task ID (for scripting)")
+	stopCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
+
+	startCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
+
 	showThemeConfigCmd.Flags().StringVarP(&themeName, "theme", "t", defaultThemeName, `UI theme to show (run "hours themes list" for allowed values)`)
 
 	themesCmd.AddCommand(addThemeCmd)
@@ -621,6 +664,8 @@ eg. hours active -t ' {{task}} ({{time}}) '
 	rootCmd.AddCommand(logCmd)
 	rootCmd.AddCommand(statsCmd)
 	rootCmd.AddCommand(activeCmd)
+	rootCmd.AddCommand(stopCmd)
+	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(themesCmd)
 
 	rootCmd.CompletionOptions.DisableDefaultCmd = true

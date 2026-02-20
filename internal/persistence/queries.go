@@ -867,3 +867,37 @@ WHERE id=?;
 
 	return tl, nil
 }
+
+// FinishActiveTLForCLI stops the currently active task log and returns its task ID and summary.
+// Returns -1 for taskID if nothing was being tracked.
+func FinishActiveTLForCLI(db *sql.DB) (int, string, error) {
+	row := db.QueryRow(`
+SELECT tl.id, tl.task_id, t.summary, tl.begin_ts, tl.comment
+FROM task_log tl LEFT JOIN task t ON tl.task_id = t.id
+WHERE tl.active=true;
+`)
+
+	var taskLogID int
+	var taskID int
+	var taskSummary string
+	var beginTs time.Time
+	var comment *string
+
+	err := row.Scan(&taskLogID, &taskID, &taskSummary, &beginTs, &comment)
+	if errors.Is(err, sql.ErrNoRows) {
+		return -1, "", nil
+	}
+	if err != nil {
+		return -1, "", err
+	}
+
+	endTs := time.Now().UTC()
+	secsSpent := int(endTs.Sub(beginTs).Seconds())
+
+	err = FinishActiveTL(db, taskLogID, taskID, beginTs, endTs, secsSpent, comment)
+	if err != nil {
+		return -1, "", err
+	}
+
+	return taskID, taskSummary, nil
+}
