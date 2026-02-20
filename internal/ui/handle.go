@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -519,6 +520,33 @@ func (m *Model) handleRequestToUpdateTask() {
 	m.taskInputs[summaryField].Focus()
 	m.taskInputs[summaryField].SetValue(task.Summary)
 	m.taskMgmtContext = taskUpdateCxt
+}
+
+func (m *Model) handleCopyTaskSummary() {
+	var selectedTask *types.Task
+	var ok bool
+
+	switch m.activeView {
+	case taskListView:
+		selectedTask, ok = m.activeTasksList.SelectedItem().(*types.Task)
+	case inactiveTaskListView:
+		selectedTask, ok = m.inactiveTasksList.SelectedItem().(*types.Task)
+	default:
+		return
+	}
+
+	if !ok || selectedTask == nil {
+		m.message = errMsg("No task selected")
+		return
+	}
+
+	err := clipboard.WriteAll(selectedTask.Summary)
+	if err != nil {
+		m.message = errMsg("Failed to copy to clipboard")
+		return
+	}
+
+	m.message = infoMsg("Copied to clipboard")
 }
 
 func (m *Model) handleRequestToScrollVPUp() {
