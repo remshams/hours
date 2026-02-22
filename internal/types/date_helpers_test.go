@@ -208,6 +208,14 @@ func TestGetDateRangeFromPeriod(t *testing.T) {
 			expectedNumDays:  31,
 		},
 		{
+			name:             "this-month across DST transition (March 2024)",
+			period:           "this-month",
+			now:              time.Date(2024, 3, 20, 0, 0, 0, 0, time.FixedZone("EST", -5*60*60)), // EST timezone
+			expectedStartStr: "2024/03/01 00:00",
+			expectedEndStr:   "2024/04/01 00:00",
+			expectedNumDays:  31, // March has 31 days, DST-safe calculation should return this
+		},
+		{
 			name:             "a date",
 			period:           "2024/06/20",
 			expectedStartStr: "2024/06/20 00:00",
