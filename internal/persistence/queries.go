@@ -19,6 +19,9 @@ var (
 	ErrNoTaskActive               = errors.New("db: no task is being actively tracked right now")
 	ErrCouldntGetActiveTask       = errors.New("db: couldn't get active task details")
 	ErrCouldntLastInsertID        = errors.New("db: couldn't get ID of the row last inserted")
+	ErrTaskLogNotFound            = errors.New("db: task log entry not found")
+	ErrTaskNotFound               = errors.New("db: task not found")
+	ErrNegativeSecsSpent          = errors.New("db: secs_spent would become negative")
 )
 
 type QuickSwitchResult struct {
@@ -702,6 +705,31 @@ LIMIT ?;
 
 func DeleteTL(db *sql.DB, entry *types.TaskLogEntry) error {
 	return runInTx(db, func(tx *sql.Tx) error {
+		// Decrease secs_spent on task (atomic conditional update)
+		tResult, err := tx.Exec(`
+UPDATE task
+SET secs_spent = secs_spent - ?,
+    updated_at = ?
+WHERE id = ? AND secs_spent >= ?;
+`, entry.SecsSpent, time.Now().UTC(), entry.TaskID, entry.SecsSpent)
+		if err != nil {
+			return err
+		}
+		tRowsAffected, err := tResult.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if tRowsAffected == 0 {
+			// Check if row exists to determine the error
+			var exists int
+			err = tx.QueryRow(`SELECT 1 FROM task WHERE id = ?`, entry.TaskID).Scan(&exists)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrTaskNotFound
+			}
+			return ErrNegativeSecsSpent
+		}
+
+		// Delete the task_log entry
 		stmt, err := tx.Prepare(`
 DELETE from task_log
 WHERE ID=?;
@@ -712,59 +740,62 @@ WHERE ID=?;
 		defer stmt.Close()
 
 		_, err = stmt.Exec(entry.ID)
-		if err != nil {
-			return err
-		}
-
-		tStmt, err := tx.Prepare(`
-UPDATE task
-SET secs_spent = secs_spent-?,
-    updated_at = ?
-WHERE id = ?;
-    `)
-		if err != nil {
-			return err
-		}
-		defer tStmt.Close()
-
-		_, err = tStmt.Exec(entry.SecsSpent, time.Now().UTC(), entry.TaskID)
 		return err
 	})
 }
 
 func MoveTaskLog(db *sql.DB, tlID int, oldTaskID int, newTaskID int, secsSpent int) error {
+	if oldTaskID == newTaskID {
+		return nil
+	}
+
 	return runInTx(db, func(tx *sql.Tx) error {
 		// Update the task_log entry's task_id
 		updateTLStmt, err := tx.Prepare(`
 UPDATE task_log
 SET task_id = ?
-WHERE id = ?;
+WHERE id = ? AND task_id = ?;
 `)
 		if err != nil {
 			return err
 		}
 		defer updateTLStmt.Close()
 
-		_, err = updateTLStmt.Exec(newTaskID, tlID)
+		result, err := updateTLStmt.Exec(newTaskID, tlID, oldTaskID)
 		if err != nil {
 			return err
 		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rowsAffected == 0 {
+			return ErrTaskLogNotFound
+		}
 
-		// Decrease secs_spent on old task
-		oldTaskStmt, err := tx.Prepare(`
+		// Decrease secs_spent on old task (atomic conditional update)
+		ts := time.Now().UTC()
+		oldTaskResult, err := tx.Exec(`
 UPDATE task
 SET secs_spent = secs_spent - ?,
     updated_at = ?
-WHERE id = ?;
-`)
+WHERE id = ? AND secs_spent >= ?;
+`, secsSpent, ts, oldTaskID, secsSpent)
 		if err != nil {
 			return err
 		}
-		defer oldTaskStmt.Close()
-
-		_, err = oldTaskStmt.Exec(secsSpent, time.Now().UTC(), oldTaskID)
+		oldTaskRowsAffected, err := oldTaskResult.RowsAffected()
 		if err != nil {
 			return err
+		}
+		if oldTaskRowsAffected == 0 {
+			// Check if row exists to determine the error
+			var exists int
+			err = tx.QueryRow(`SELECT 1 FROM task WHERE id = ?`, oldTaskID).Scan(&exists)
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrTaskNotFound
+			}
+			return ErrNegativeSecsSpent
 		}
 
 		// Increase secs_spent on new task
@@ -779,8 +810,18 @@ WHERE id = ?;
 		}
 		defer newTaskStmt.Close()
 
-		_, err = newTaskStmt.Exec(secsSpent, time.Now().UTC(), newTaskID)
-		return err
+		res, err := newTaskStmt.Exec(secsSpent, ts, newTaskID)
+		if err != nil {
+			return err
+		}
+		newTaskRowsAffected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if newTaskRowsAffected == 0 {
+			return ErrTaskNotFound
+		}
+		return nil
 	})
 }
 

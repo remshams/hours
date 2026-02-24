@@ -82,7 +82,8 @@ moveTaskLogView           stateView = iota // View to select target task for mov
 ```
 
 **Add new fields to Model struct** (after line 137):
-```go	targetTasksList    list.Model    // List of active tasks for selecting move target
+```go
+targetTasksList    list.Model    // List of active tasks for selecting move target
 	moveTLID           int           // ID of task log entry being moved
 	moveOldTaskID      int           // ID of original parent task
 	moveSecsSpent      int           // Seconds spent on the log entry being moved
@@ -237,12 +238,12 @@ case moveTaskLogView:
 **Purpose**: Add help text for the new "m" shortcut
 
 **Add entry under "Task Logs List View" section** (around line 77-79):
-```
+```text
   m                                       Move task log entry to another task
 ```
 
 Update the section to:
-```
+```text
   d                                       Show task log details
   <ctrl+s>/u                              Update task log entry
   <ctrl+d>                                Delete task log entry
@@ -253,7 +254,7 @@ Update the section to:
 
 ## Implementation Flow
 
-```
+```text
 User in taskLogView
     ↓
 Press "m" key
@@ -319,7 +320,7 @@ The secs_spent field on task is a denormalized cache of the sum of all task_log 
 
 ## Existing Patterns to Follow
 
-1. **Transaction handling**: Use `runInTx()` from persistence/queries.go (line 754)
+1. **Transaction handling**: Use `runInTx()` from persistence/queries.go (line 845)
 2. **Message handling**: Follow pattern of tLDeletedMsg (line 80-83 in msgs.go)
 3. **View switching**: Use the stateView pattern in model.go
 4. **List filtering**: Check `list.IsFiltered()` before operations (see handle.go line 393-397)
