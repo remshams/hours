@@ -445,9 +445,10 @@ func (m *Model) handleRequestToMoveTaskLog() tea.Cmd {
 	m.moveSecsSpent = entry.SecsSpent
 
 	// Initialize target list with active tasks, excluding current parent
+	items := m.activeTasksList.Items()
 	targetItems := []list.Item{}
-	for i := range m.activeTasksList.Items() {
-		task, ok := m.activeTasksList.Items()[i].(*types.Task)
+	for i := range items {
+		task, ok := items[i].(*types.Task)
 		if !ok {
 			continue
 		}
@@ -456,6 +457,11 @@ func (m *Model) handleRequestToMoveTaskLog() tea.Cmd {
 			targetItems = append(targetItems, task)
 		}
 	}
+	if len(targetItems) == 0 {
+		m.message = errMsg("No other active tasks to move this log to")
+		return nil
+	}
+
 	m.targetTasksList.SetItems(targetItems)
 
 	m.activeView = moveTaskLogView

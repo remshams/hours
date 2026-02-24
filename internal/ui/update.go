@@ -91,7 +91,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case manualTasklogEntryView, editSavedTLView:
 				updateCmd = m.getCmdToCreateOrEditTL()
 			case moveTaskLogView:
-				updateCmd = m.handleTargetTaskSelection()
+				if keyMsg.String() == enter {
+					updateCmd = m.handleTargetTaskSelection()
+				}
 			}
 			if updateCmd != nil {
 				cmds = append(cmds, updateCmd)
@@ -179,9 +181,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tLCommentInput, cmd = m.tLCommentInput.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
-	case moveTaskLogView:
-		m.targetTasksList, cmd = m.targetTasksList.Update(msg)
-		cmds = append(cmds, cmd)
 	}
 
 	switch msg := msg.(type) {
@@ -299,7 +298,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "m":
 			if m.activeView == taskLogView {
-				m.handleRequestToMoveTaskLog()
+				cmd := m.handleRequestToMoveTaskLog()
+				return m, cmd
 			}
 		case "?":
 			m.lastView = m.activeView
@@ -396,6 +396,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	case inactiveTaskListView:
 		m.inactiveTasksList, cmd = m.inactiveTasksList.Update(msg)
+		cmds = append(cmds, cmd)
+	case moveTaskLogView:
+		m.targetTasksList, cmd = m.targetTasksList.Update(msg)
 		cmds = append(cmds, cmd)
 	case helpView:
 		m.helpVP, cmd = m.helpVP.Update(msg)

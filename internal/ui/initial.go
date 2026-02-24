@@ -120,6 +120,7 @@ This can be used to record details about your work on this task.`
 			style.listItemDescColor,
 			lipgloss.Color(style.theme.ActiveTasks),
 		), listWidth, 0)
+	m.targetTasksList.SetFilteringEnabled(false)
 	m.targetTasksList.Title = "Select Target Task"
 	m.targetTasksList.SetStatusBarItemName("task", "tasks")
 	m.targetTasksList.DisableQuitKeybindings()
