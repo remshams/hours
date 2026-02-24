@@ -208,14 +208,6 @@ func TestGetDateRangeFromPeriod(t *testing.T) {
 			expectedNumDays:  31,
 		},
 		{
-			name:             "this-month across DST transition (March 2024)",
-			period:           "this-month",
-			now:              time.Date(2024, 3, 20, 0, 0, 0, 0, time.FixedZone("EST", -5*60*60)), // EST timezone
-			expectedStartStr: "2024/03/01 00:00",
-			expectedEndStr:   "2024/04/01 00:00",
-			expectedNumDays:  31, // March has 31 days, DST-safe calculation should return this
-		},
-		{
 			name:             "a date",
 			period:           "2024/06/20",
 			expectedStartStr: "2024/06/20 00:00",
@@ -314,4 +306,23 @@ func TestGetTSRelative(t *testing.T) {
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestGetDateRangeFromPeriod_DST(t *testing.T) {
+	locNY, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skipf("skipping test: tzdata unavailable or timezone 'America/New_York' not found: %s", err)
+	}
+
+	now := time.Date(2024, 3, 20, 0, 0, 0, 0, locNY) // America/New_York observes DST
+
+	got, err := GetDateRangeFromPeriod("this-month", now, false, nil)
+	require.NoError(t, err)
+
+	startStr := got.Start.Format(timeFormat)
+	endStr := got.End.Format(timeFormat)
+
+	assert.Equal(t, "2024/03/01 00:00", startStr)
+	assert.Equal(t, "2024/04/01 00:00", endStr)
+	assert.Equal(t, 31, got.NumDays) // March has 31 days, DST-safe calculation should return this
 }
