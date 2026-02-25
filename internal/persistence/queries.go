@@ -960,3 +960,38 @@ WHERE id=?;
 
 	return tl, nil
 }
+
+func ArchiveStaleTasks(db *sql.DB, since time.Time) (int, error) {
+	return runInTxAndReturnID(db, func(tx *sql.Tx) (int, error) {
+		// Find active tasks with no log entries since the given time
+		// This includes tasks with no log entries at all, or whose latest log entry is older than "since"
+		stmt, err := tx.Prepare(`
+UPDATE task
+SET active = false,
+    updated_at = ?
+WHERE active = true
+AND id NOT IN (
+    SELECT DISTINCT task_id
+    FROM task_log
+    WHERE end_ts >= ?
+    AND active = false
+);
+`)
+		if err != nil {
+			return 0, err
+		}
+		defer stmt.Close()
+
+		res, err := stmt.Exec(time.Now().UTC(), since.UTC())
+		if err != nil {
+			return 0, err
+		}
+
+		rowsAffected, err := res.RowsAffected()
+		if err != nil {
+			return 0, err
+		}
+
+		return int(rowsAffected), nil
+	})
+}
