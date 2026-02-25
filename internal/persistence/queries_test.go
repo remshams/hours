@@ -932,6 +932,37 @@ func TestArchiveStaleTasks(t *testing.T) {
 		assert.False(t, task2.Active, "task 2 should still be inactive")
 	})
 
+	t.Run("TestArchiveStaleTasks does not archive tasks with active/open log entries", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN - create a task with an open/active log entry
+		referenceTS := time.Now()
+		taskID, err := InsertTask(testDB, "task with open log")
+		require.NoError(t, err, "failed to insert task")
+
+		// Insert an open/active log entry (active = true, end_ts IS NULL)
+		beginTS := referenceTS.Add(time.Hour * -24) // 1 day ago
+		_, err = testDB.Exec(
+			"INSERT INTO task_log (task_id, begin_ts, end_ts, active, comment) VALUES (?, ?, NULL, true, ?)",
+			taskID, beginTS.UTC(), "open log entry",
+		)
+		require.NoError(t, err, "failed to insert open task log")
+
+		twoWeeksAgo := referenceTS.AddDate(0, 0, -14)
+
+		// WHEN
+		archivedCount, err := ArchiveStaleTasks(testDB, twoWeeksAgo)
+
+		// THEN
+		require.NoError(t, err, "failed to archive stale tasks")
+		assert.Equal(t, 0, archivedCount, "expected 0 tasks to be archived (task has open log)")
+
+		// Verify the task is still active
+		task, err := fetchTaskByID(testDB, taskID)
+		require.NoError(t, err, "failed to fetch task")
+		assert.True(t, task.Active, "task with open/active log should not be archived")
+	})
+
 	err = testDB.Close()
 	require.NoErrorf(t, err, "error closing DB: %v", err)
 }
