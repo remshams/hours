@@ -810,6 +810,132 @@ func TestRepository(t *testing.T) {
 	require.NoErrorf(t, err, "error closing DB: %v", err)
 }
 
+func TestArchiveStaleTasks(t *testing.T) {
+	testDB, err := sql.Open("sqlite", ":memory:")
+	require.NoErrorf(t, err, "error opening DB: %v", err)
+
+	err = InitDB(testDB)
+	require.NoErrorf(t, err, "error initializing DB: %v", err)
+
+	err = UpgradeDB(testDB, 1)
+	require.NoErrorf(t, err, "error upgrading DB: %v", err)
+
+	t.Run("TestArchiveStaleTasks archives tasks with no recent log entries", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN - reference time is now, we have tasks with old logs (>2 weeks ago)
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS.Add(time.Hour * 24 * 21 * -1)) // 3 weeks ago
+		seedDB(t, testDB, seedData)
+
+		// Add a recent log entry for task 1 only
+		recentLogEndTS := referenceTS.Add(time.Hour * -2)
+		recentLogBeginTS := recentLogEndTS.Add(time.Hour * -1)
+		recentComment := "recent log entry"
+		_, err = InsertManualTL(testDB, 1, recentLogBeginTS, recentLogEndTS, &recentComment)
+		require.NoError(t, err, "failed to insert recent task log")
+
+		twoWeeksAgo := referenceTS.AddDate(0, 0, -14)
+
+		// WHEN
+		archivedCount, err := ArchiveStaleTasks(testDB, twoWeeksAgo)
+
+		// THEN
+		require.NoError(t, err, "failed to archive stale tasks")
+		assert.Equal(t, 1, archivedCount, "expected 1 stale task to be archived")
+
+		// Verify task 1 is still active (has recent log)
+		task1, err := fetchTaskByID(testDB, 1)
+		require.NoError(t, err, "failed to fetch task 1")
+		assert.True(t, task1.Active, "task 1 should still be active")
+
+		// Verify task 2 is now inactive (no recent logs)
+		task2, err := fetchTaskByID(testDB, 2)
+		require.NoError(t, err, "failed to fetch task 2")
+		assert.False(t, task2.Active, "task 2 should be archived (inactive)")
+	})
+
+	t.Run("TestArchiveStaleTasks archives tasks with no log entries at all", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN - create a task with no log entries
+		referenceTS := time.Now()
+		taskID, err := InsertTask(testDB, "task with no logs")
+		require.NoError(t, err, "failed to insert task")
+
+		twoWeeksAgo := referenceTS.AddDate(0, 0, -14)
+
+		// WHEN
+		archivedCount, err := ArchiveStaleTasks(testDB, twoWeeksAgo)
+
+		// THEN
+		require.NoError(t, err, "failed to archive stale tasks")
+		assert.Equal(t, 1, archivedCount, "expected 1 stale task to be archived")
+
+		// Verify the task is now inactive
+		task, err := fetchTaskByID(testDB, taskID)
+		require.NoError(t, err, "failed to fetch task")
+		assert.False(t, task.Active, "task with no logs should be archived")
+	})
+
+	t.Run("TestArchiveStaleTasks does not archive tasks with recent log entries", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN - tasks with recent logs (within last 2 weeks)
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS.Add(time.Hour * 24 * 3 * -1)) // 3 days ago
+		seedDB(t, testDB, seedData)
+
+		twoWeeksAgo := referenceTS.AddDate(0, 0, -14)
+
+		// WHEN
+		archivedCount, err := ArchiveStaleTasks(testDB, twoWeeksAgo)
+
+		// THEN
+		require.NoError(t, err, "failed to archive stale tasks")
+		assert.Equal(t, 0, archivedCount, "expected 0 stale tasks to be archived")
+
+		// Verify all tasks are still active
+		task1, err := fetchTaskByID(testDB, 1)
+		require.NoError(t, err, "failed to fetch task 1")
+		assert.True(t, task1.Active, "task 1 should still be active")
+
+		task2, err := fetchTaskByID(testDB, 2)
+		require.NoError(t, err, "failed to fetch task 2")
+		assert.True(t, task2.Active, "task 2 should still be active")
+	})
+
+	t.Run("TestArchiveStaleTasks does not archive already inactive tasks", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN - inactive task with old logs
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS.Add(time.Hour * 24 * 21 * -1)) // 3 weeks ago
+		seedDB(t, testDB, seedData)
+
+		// Make task 2 inactive
+		err = UpdateTaskActiveStatus(testDB, 2, false)
+		require.NoError(t, err, "failed to make task inactive")
+
+		twoWeeksAgo := referenceTS.AddDate(0, 0, -14)
+
+		// WHEN
+		archivedCount, err := ArchiveStaleTasks(testDB, twoWeeksAgo)
+
+		// THEN
+		require.NoError(t, err, "failed to archive stale tasks")
+		assert.Equal(t, 1, archivedCount, "expected 1 stale task to be archived (only task 1)")
+
+		// Verify task 2 is still inactive
+		task2, err := fetchTaskByID(testDB, 2)
+		require.NoError(t, err, "failed to fetch task 2")
+		assert.False(t, task2.Active, "task 2 should still be inactive")
+	})
+
+	err = testDB.Close()
+	require.NoErrorf(t, err, "error closing DB: %v", err)
+}
+
 func cleanupDB(t *testing.T, testDB *sql.DB) {
 	t.Helper()
 
