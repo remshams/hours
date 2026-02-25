@@ -965,16 +965,17 @@ func ArchiveStaleTasks(db *sql.DB, since time.Time) (int, error) {
 	return runInTxAndReturnID(db, func(tx *sql.Tx) (int, error) {
 		// Find active tasks with no log entries since the given time
 		// This includes tasks with no log entries at all, or whose latest log entry is older than "since"
+		// Also protects tasks with currently running logs (active = true)
 		stmt, err := tx.Prepare(`
 UPDATE task
 SET active = false,
     updated_at = ?
 WHERE active = true
-AND id NOT IN (
-    SELECT DISTINCT task_id
+AND NOT EXISTS (
+    SELECT 1
     FROM task_log
-    WHERE end_ts >= ?
-    AND active = false
+    WHERE task_log.task_id = task.id
+    AND (task_log.end_ts >= ? OR task_log.active = true)
 );
 `)
 		if err != nil {
