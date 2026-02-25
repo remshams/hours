@@ -95,6 +95,11 @@ type tasksFetchedMsg struct {
 	err    error
 }
 
+type staleTasksArchivedMsg struct {
+	count int
+	err   error
+}
+
 type recordsDataFetchedMsg struct {
 	dateRange types.DateRange
 	report    string
