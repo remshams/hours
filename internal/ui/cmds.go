@@ -217,3 +217,10 @@ func moveTaskLog(db *sql.DB, tlID int, oldTaskID int, newTaskID int, secsSpent i
 		return taskLogMovedMsg{tlID, oldTaskID, newTaskID, err}
 	}
 }
+
+func archiveStaleTasks(db *sql.DB, since time.Time) tea.Cmd {
+	return func() tea.Msg {
+		count, err := pers.ArchiveStaleTasks(db, since)
+		return staleTasksArchivedMsg{count, err}
+	}
+}
