@@ -301,6 +301,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd := m.handleRequestToMoveTaskLog()
 				return m, cmd
 			}
+		case "A":
+			if m.activeView == taskListView {
+				twoWeeksAgo := m.timeProvider.Now().AddDate(0, 0, -14)
+				cmds = append(cmds, archiveStaleTasks(m.db, twoWeeksAgo))
+			}
 		case "?":
 			m.lastView = m.activeView
 			m.activeView = helpView
@@ -310,6 +315,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = errMsg(fmt.Sprintf("Error creating task: %s", msg.err))
 		} else {
 			cmds = append(cmds, fetchTasks(m.db, true))
+		}
+	case staleTasksArchivedMsg:
+		if msg.err != nil {
+			m.message = errMsg(fmt.Sprintf("Error archiving tasks: %s", msg.err))
+		} else {
+			m.message = infoMsg(fmt.Sprintf("Archived %d tasks", msg.count))
+			cmds = append(cmds, fetchTasks(m.db, true))
+			cmds = append(cmds, fetchTasks(m.db, false))
 		}
 	case taskUpdatedMsg:
 		if msg.err != nil {
