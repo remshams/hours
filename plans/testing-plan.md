@@ -36,6 +36,48 @@ Increase confidence in `hours` in small, reviewable increments: first improve un
 - `T-070` testing guide docs
 - `T-071` optional coverage trend/gate
 
+## Baseline Coverage (T-001)
+
+Captured on: 2026-02-26
+
+| Package | Coverage | Status |
+|---------|----------|--------|
+| `github.com/dhth/hours` | 0.0% | No tests |
+| `github.com/dhth/hours/cmd` | 1.4% | Critical hotspot |
+| `github.com/dhth/hours/internal/common` | No test files | Hotspot |
+| `github.com/dhth/hours/internal/persistence` | 54.6% | Moderate |
+| `github.com/dhth/hours/internal/types` | 68.2% | Moderate |
+| `github.com/dhth/hours/internal/ui` | 14.6% | Critical hotspot |
+| `github.com/dhth/hours/internal/ui/theme` | 66.4% | Moderate |
+| `github.com/dhth/hours/internal/utils` | 100.0% | Excellent |
+| `github.com/dhth/hours/tests/cli` | 0.0% | Test infrastructure |
+| `github.com/dhth/hours/tests/cli/themes` | No statements | Theme validation tests |
+
+### Hotspots (Priority Order)
+
+1. **`cmd` package (1.4%)** - All command handling, flag/env parsing, error output
+2. **`internal/ui` package (14.6%)** - All TUI state management, view rendering, user interactions
+3. **`internal/common` (no tests)** - Shared utilities and types
+4. **Root package (0.0%)** - Main entry point
+
+## Test Matrix (T-002)
+
+| Test Layer | Location | Command | Environment | Notes |
+|------------|----------|---------|-------------|-------|
+| Unit/Integration | `*/...` | `go test ./...` | All platforms | Standard Go tests |
+| Command Coverage | `cmd/*_test.go` | `go test ./cmd/...` | All platforms | Flag/env precedence, error paths |
+| UI State Tests | `internal/ui/*_test.go` | `go test ./internal/ui/...` | All platforms | Deterministic with mock time/DB |
+| Renderer Tests | `internal/ui/*_test.go` | `go test ./internal/ui/...` | All platforms | Fixed DB fixtures |
+| Journey Tests | `internal/ui/journey_test.go` | `go test ./internal/ui/...` | All platforms | In-process E2E, deterministic |
+| PTY Smoke Tests | `tests/cli/tui_smoke_test.go` | `go test ./tests/cli/...` | **Linux only** | True interactive TUI testing |
+
+### Linux-Only Interactive Test Policy
+
+- PTY smoke tests (`T-050`, `T-051`) require pseudo-terminal support
+- These tests use `github.com/creack/pty` or similar which requires Linux
+- All other test layers run on all platforms (macOS, Linux, Windows)
+- CI will have a dedicated Linux job for interactive tests
+
 ## Execution Plan (Agent-Oriented)
 
 ### Phase 1 - Baseline and Guardrails
@@ -166,8 +208,8 @@ Done criteria:
 
 | ID | Task | Status | PR | Notes |
 |---|---|---|---|---|
-| T-001 | Coverage baseline | todo | PR-1 | |
-| T-002 | Test matrix | todo | PR-1 | |
+| T-001 | Coverage baseline | **done** | PR-1 | Captured in "Baseline Coverage" section above |
+| T-002 | Test matrix | **done** | PR-1 | Defined in "Test Matrix" section above |
 | T-010 | root pre-run/env/flag | todo | PR-2 | |
 | T-011 | themes error paths | todo | PR-2 | |
 | T-012 | error output behavior | todo | PR-2 | |
