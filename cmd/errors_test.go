@@ -20,14 +20,19 @@ func captureStderr(t *testing.T, fn func()) string {
 	}
 	os.Stderr = w
 
+	defer func() {
+		os.Stderr = oldStderr
+		w.Close()
+		r.Close()
+	}()
+
 	fn()
 
+	// Close the write end to signal EOF to the reader
 	w.Close()
-	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
-	r.Close()
 
 	return buf.String()
 }
