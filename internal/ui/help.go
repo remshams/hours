@@ -68,6 +68,8 @@ func getHelpText(style Style) string {
                                               manual task log entry
   <ctrl+x>                                Discard currently active recording
   <ctrl+t>                                Go to currently tracked item
+  A                                       Archive all tasks with no log entries in the
+                                              last 2 weeks
   <ctrl+d>                                Deactivate task
 `),
 		style.helpPrimary.Render("Task Logs List View"),
