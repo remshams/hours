@@ -212,7 +212,7 @@ Done criteria:
 | T-002 | Test matrix | **done** | PR-1 | Defined in "Test Matrix" section above |
 | T-010 | root pre-run/env/flag | **done** | PR-2 | Added tests for invalid DB extension, env/flag precedence, default values, subcommands |
 | T-011 | themes error paths | **done** | PR-2 | Added tests for invalid theme names and theme creation |
-| T-012 | error output behavior | todo | PR-2 | |
+| T-012 | error output behavior | **done** | PR-2 | Added tests for all user-facing error messages to stderr |
 | T-020 | navigation transitions | todo | PR-3 | |
 | T-023 | resize/viewport edge cases | todo | PR-3 | |
 | T-021 | task/tracking flows | todo | PR-4 | |
