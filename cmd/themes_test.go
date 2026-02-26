@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,6 +87,11 @@ func TestAddTheme_ValidThemeName(t *testing.T) {
 			content, err := os.ReadFile(path)
 			require.NoError(t, err)
 			assert.NotEmpty(t, content)
+
+			// Validate that content is valid JSON
+			var v interface{}
+			err = json.Unmarshal(content, &v)
+			require.NoError(t, err, "theme file content should be valid JSON")
 		})
 	}
 }
