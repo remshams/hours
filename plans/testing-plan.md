@@ -210,7 +210,7 @@ Done criteria:
 |---|---|---|---|---|
 | T-001 | Coverage baseline | **done** | PR-1 | Captured in "Baseline Coverage" section above |
 | T-002 | Test matrix | **done** | PR-1 | Defined in "Test Matrix" section above |
-| T-010 | root pre-run/env/flag | todo | PR-2 | |
+| T-010 | root pre-run/env/flag | **done** | PR-2 | Added tests for invalid DB extension, env/flag precedence, default values, subcommands |
 | T-011 | themes error paths | todo | PR-2 | |
 | T-012 | error output behavior | todo | PR-2 | |
 | T-020 | navigation transitions | todo | PR-3 | |
