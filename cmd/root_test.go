@@ -13,10 +13,6 @@ func TestPreRunE_InvalidDBExtension(t *testing.T) {
 	// Create a temp directory for test
 	tempDir := t.TempDir()
 
-	// Create a root command
-	cmd, err := NewRootCommand()
-	require.NoError(t, err)
-
 	// Set the dbpath flag to a file without .db extension
 	testCases := []struct {
 		name   string
@@ -38,15 +34,18 @@ func TestPreRunE_InvalidDBExtension(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a fresh root command for each subtest
+			cmd, err := NewRootCommand()
+			require.NoError(t, err)
+
 			// Reset the flag to its default value first
 			cmd.Flags().Set("dbpath", tt.dbPath)
 
 			// Execute PreRunE
 			preRunE := cmd.PreRunE
-			if preRunE != nil {
-				err := preRunE(cmd, []string{})
-				assert.ErrorIs(t, err, errDBFileExtIncorrect)
-			}
+			require.NotNil(t, preRunE)
+			err = preRunE(cmd, []string{})
+			assert.ErrorIs(t, err, errDBFileExtIncorrect)
 		})
 	}
 }
@@ -114,29 +113,43 @@ func TestThemeEnvVarPrecedence(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set up environment
-			if tt.envValue != "" {
-				t.Setenv("HOURS_THEME", tt.envValue)
-			}
+			// Set up environment (always set, even to empty string to avoid host leakage)
+			t.Setenv("HOURS_THEME", tt.envValue)
 
 			// Create a root command
 			cmd, err := NewRootCommand()
 			require.NoError(t, err)
 
-			// Set the theme flag
+			// Set the theme flag (only when explicitly set in the test)
 			if tt.flagValue != "default" {
-				cmd.Flags().Set("theme", tt.flagValue)
+				err = cmd.Flags().Set("theme", tt.flagValue)
+				require.NoError(t, err)
 			}
 
-			// Verify flag state
-			if tt.flagValue != "default" {
-				assert.True(t, cmd.Flags().Changed("theme"), "flag should be marked as changed")
-			} else {
-				assert.False(t, cmd.Flags().Changed("theme"), "flag should not be marked as changed")
-			}
+			// Execute PreRunE to run the resolution logic
+			preRunE := cmd.PreRunE
+			require.NotNil(t, preRunE)
 
-			// Note: We can't easily test the actual theme value without executing preRun,
-			// which requires a valid DB. The test verifies the flag/env behavior logic.
+			// Execute PreRunE - this should run the theme resolution logic
+			// We use a temp db to avoid failures on DB setup
+			tempDir := t.TempDir()
+			dbPath := filepath.Join(tempDir, "test.db")
+			cmd.Flags().Set("dbpath", dbPath)
+
+			// The PreRunE may fail on theme validation but should not panic
+			// Capture the error to check theme was resolved
+			err = preRunE(cmd, []string{})
+
+			// Assert the resolved theme equals the expected theme
+			resolvedTheme := GetThemeName()
+			assert.Equal(t, tt.expectedTheme, resolvedTheme, "resolved theme should match expected")
+
+			// If there was an error, it should be a theme-related error, not DB-related
+			if err != nil {
+				assert.NotErrorIs(t, err, errDBFileExtIncorrect, "should not fail on DB extension")
+				assert.NotErrorIs(t, err, errCouldntCreateDB, "should not fail on DB creation")
+				assert.NotErrorIs(t, err, errCouldntInitializeDB, "should not fail on DB initialization")
+			}
 		})
 	}
 }
