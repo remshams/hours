@@ -107,6 +107,8 @@ Done criteria:
 
 Done criteria:
 - Main error and precedence branches in `cmd` are covered.
+- Coverage improved from 1.4% to 44.2% for `cmd` package.
+- All T-010, T-011, T-012 tests passing.
 
 ### Phase 3 - UI State and Action Coverage
 
