@@ -5,8 +5,23 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 )
+
+// assertTrackingCmdResult is a helper to reduce duplication in tracking command tests
+func assertTrackingCmdResult(t *testing.T, cmd tea.Cmd, expectCmd bool, expectLocked bool, expectMsg string, changesLocked bool, messageValue string) {
+	t.Helper()
+	if expectCmd {
+		assert.NotNil(t, cmd)
+	} else {
+		assert.Nil(t, cmd)
+	}
+	assert.Equal(t, expectLocked, changesLocked)
+	if expectMsg != "" {
+		assert.Equal(t, expectMsg, messageValue)
+	}
+}
 
 // T-021: Task and tracking flow tests
 
@@ -173,16 +188,7 @@ func TestGetCmdToStartTracking(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.setupModel()
 			cmd := m.getCmdToStartTracking()
-
-			if tt.expectCmd {
-				assert.NotNil(t, cmd)
-			} else {
-				assert.Nil(t, cmd)
-			}
-			assert.Equal(t, tt.expectLocked, m.changesLocked)
-			if tt.expectMsg != "" {
-				assert.Equal(t, tt.expectMsg, m.message.value)
-			}
+			assertTrackingCmdResult(t, cmd, tt.expectCmd, tt.expectLocked, tt.expectMsg, m.changesLocked, m.message.value)
 		})
 	}
 }
@@ -253,16 +259,7 @@ func TestGetCmdToQuickSwitchTracking(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.setupModel()
 			cmd := m.getCmdToQuickSwitchTracking()
-
-			if tt.expectCmd {
-				assert.NotNil(t, cmd)
-			} else {
-				assert.Nil(t, cmd)
-			}
-			assert.Equal(t, tt.expectLocked, m.changesLocked)
-			if tt.expectMsg != "" {
-				assert.Equal(t, tt.expectMsg, m.message.value)
-			}
+			assertTrackingCmdResult(t, cmd, tt.expectCmd, tt.expectLocked, tt.expectMsg, m.changesLocked, m.message.value)
 		})
 	}
 }
