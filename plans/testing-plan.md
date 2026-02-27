@@ -223,9 +223,9 @@ Done criteria:
 | T-031 | RenderReport/getReport/getReportAgg | **done** | PR-6 | Added tests for no entries, multi-day, aggregate/non-aggregate reports |
 | T-032 | RenderStats/getStats/ShowActiveTask | **done** | PR-6 | Added tests for all/range modes, interactive constraints, active template |
 | T-040 | journey harness | **done** | PR-7 | Added comprehensive harness with DB seeding, TUI helpers, assertions |
-| T-041 | journey flow A | todo | PR-8 | |
-| T-042 | journey flow B | todo | PR-8 | |
-| T-043 | optional journey snapshots | todo | PR-8 | optional |
+| T-041 | journey flow A | **done** | PR-8 | Added create -> track -> stop -> verify journey test |
+| T-042 | journey flow B | **done** | PR-8 | Added edit log -> move log -> deactivate/reactivate journey test |
+| T-043 | optional journey snapshots | cancelled | PR-8 | optional - skipped to keep PR focused |
 | T-050 | PTY harness (Linux only) | todo | PR-9 | |
 | T-051 | PTY core flow (Linux only) | todo | PR-9 | |
 | T-060 | Linux CI job | todo | PR-10 | |
