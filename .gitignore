@@ -7,3 +7,4 @@ debug.log
 justfile
 .cmds
 .frames
+themes.test
