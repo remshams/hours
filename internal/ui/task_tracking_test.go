@@ -523,7 +523,7 @@ func TestHandleRequestToMoveTaskLog(t *testing.T) {
 			m.handleRequestToMoveTaskLog()
 
 			assert.Equal(t, tt.expectedView, m.activeView)
-			assert.Equal(t, tt.expectItems, len(m.targetTasksList.Items()))
+			assert.Len(t, m.targetTasksList.Items(), tt.expectItems)
 			if tt.expectMsg != "" {
 				assert.Equal(t, tt.expectMsg, m.message.value)
 			}

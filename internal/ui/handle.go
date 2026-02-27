@@ -598,7 +598,7 @@ func (m *Model) handleCopyTaskSummary() {
 		return
 	}
 
-	osc52.New(selectedTask.Summary).WriteTo(os.Stderr)
+	_, _ = osc52.New(selectedTask.Summary).WriteTo(os.Stderr)
 	m.message = infoMsg("Copied to clipboard")
 }
 

@@ -99,7 +99,7 @@ func GetDateRangeFromPeriod(period string, now time.Time, fullWeek bool, maxDays
 		end = start.AddDate(0, 1, 0)
 		// Get the last day of the current month (0th day of next month = last day of current month)
 		lastDayOfMonth := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
-		numDays = int(lastDayOfMonth)
+		numDays = lastDayOfMonth
 
 	default:
 		var err error

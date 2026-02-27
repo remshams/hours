@@ -2,14 +2,14 @@
 
 ## Short Summary
 
-Increase confidence in `hours` in small, reviewable increments: first improve unit/integration coverage in `cmd` and `internal/ui`, then add deterministic TUI journey tests, and finally add one Linux-only PTY smoke test plus CI wiring for long-term stability.
+Increase confidence in `hours` in small, reviewable increments: first improve unit/integration coverage in `cmd` and `internal/ui`, then add deterministic TUI journey tests, and keep CI focused on stable, deterministic coverage.
 
 ## Scope and Constraints
 
-- Interactive E2E runs on Linux CI only.
 - Prefer deterministic tests (fixed time provider, seeded DB, isolated temp dirs).
 - Keep PRs small (1-3 backlog items each).
 - Optional items must not block core delivery.
+- PTY/Linux interactive smoke tests (`T-050`, `T-051`) are being added in this PR with bounded timeouts/diagnostics to keep CI runs actionable.
 
 ## Backlog IDs
 
@@ -69,14 +69,12 @@ Captured on: 2026-02-26
 | UI State Tests | `internal/ui/*_test.go` | `go test ./internal/ui/...` | All platforms | Deterministic with mock time/DB |
 | Renderer Tests | `internal/ui/*_test.go` | `go test ./internal/ui/...` | All platforms | Fixed DB fixtures |
 | Journey Tests | `internal/ui/journey_test.go` | `go test ./internal/ui/...` | All platforms | In-process E2E, deterministic |
-| PTY Smoke Tests | `tests/cli/tui_smoke_test.go` | `go test ./tests/cli/...` | **Linux only** | True interactive TUI testing |
 
 ### Linux-Only Interactive Test Policy
 
-- PTY smoke tests (`T-050`, `T-051`) require pseudo-terminal support
-- These tests use `github.com/creack/pty` or similar which requires Linux
-- All other test layers run on all platforms (macOS, Linux, Windows)
-- CI will have a dedicated Linux job for interactive tests
+- PTY smoke tests (`T-050`, `T-051`) are active again and implemented as Linux-only smoke coverage in this PR.
+- Deterministic `internal/ui` unit tests (`T-020`, `T-023`) and journey tests (`T-040` to `T-042`) continue to provide the primary cross-platform interaction coverage.
+- Linux runs both deterministic layers and PTY smoke tests; macOS/Windows continue running deterministic layers only.
 
 ## Execution Plan (Agent-Oriented)
 
@@ -162,22 +160,19 @@ Done criteria:
 ### Phase 6 - True Interactive Smoke (Linux Only)
 
 17. `T-050` PTY harness
-    - Launch built binary in pseudo-terminal on Linux.
-    - Send controlled key sequence and verify clean exit.
-    - Target file: `tests/cli/tui_smoke_test.go`.
+    - **Implemented**: Linux-only PTY harness added in this PR with timeout-bound execution and diagnostics.
 18. `T-051` PTY core flow
-    - Extend harness with one meaningful interaction before quit.
+    - **Implemented**: Linux-only PTY core user flow smoke test added in this PR.
 
 Done criteria:
-- Linux-only smoke test is stable and skipped on non-Linux.
+- PTY smoke tests run in Linux CI with reliable timeout/diagnostic behavior.
 
 ### Phase 7 - CI Integration and Stability
 
 19. `T-060` Add dedicated Linux CI job
-    - Run journey tests + PTY smoke tests in separate Linux job.
-    - Target files: `.github/workflows/pr.yml`, `.github/workflows/main.yml`.
+    - **Scheduled**: wire Linux CI path for the PTY smoke tests added in this PR.
 20. `T-061` Stability controls
-    - Add explicit timeouts and useful failure diagnostics/artifacts.
+    - Keep explicit timeouts and diagnostics for existing deterministic test layers.
 
 Done criteria:
 - Interactive test failures are diagnosable and isolated from baseline unit suite.
@@ -226,9 +221,9 @@ Done criteria:
 | T-041 | journey flow A | **done** | PR-8 | Added create -> track -> stop -> verify journey test |
 | T-042 | journey flow B | **done** | PR-8 | Added edit log -> move log -> deactivate/reactivate journey test |
 | T-043 | optional journey snapshots | cancelled | PR-8 | optional - skipped to keep PR focused |
-| T-050 | PTY harness (Linux only) | todo | PR-9 | |
-| T-051 | PTY core flow (Linux only) | todo | PR-9 | |
-| T-060 | Linux CI job | todo | PR-10 | |
-| T-061 | stability controls | todo | PR-10 | |
+| T-050 | PTY harness (Linux only) | **done** | PR-9 | Implemented in this PR: added Linux PTY harness with bounded timeout and debug output capture |
+| T-051 | PTY core flow (Linux only) | **done** | PR-9 | Implemented in this PR: added Linux PTY core flow smoke test covering interactive startup/navigation |
+| T-060 | Linux CI job | scheduled | PR-10 | Scheduled to run PTY smoke coverage in dedicated Linux CI path for this implementation |
+| T-061 | stability controls | scheduled | PR-10 | Scheduled follow-up: keep timeout/diagnostic controls tight for PTY and deterministic layers |
 | T-070 | testing guide docs | todo | PR-11 | |
 | T-071 | optional coverage trend/gate | todo | PR-11 | optional |

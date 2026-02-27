@@ -39,7 +39,8 @@ func TestPreRunE_InvalidDBExtension(t *testing.T) {
 			require.NoError(t, err)
 
 			// Reset the flag to its default value first
-			cmd.Flags().Set("dbpath", tt.dbPath)
+			err = cmd.Flags().Set("dbpath", tt.dbPath)
+			require.NoError(t, err)
 
 			// Execute PreRunE
 			preRunE := cmd.PreRunE
@@ -60,7 +61,8 @@ func TestPreRunE_ValidDBExtension(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the dbpath flag to a file with .db extension
-	cmd.Flags().Set("dbpath", dbPath)
+	err = cmd.Flags().Set("dbpath", dbPath)
+	require.NoError(t, err)
 
 	// Execute PreRunE - should not fail due to extension
 	preRunE := cmd.PreRunE
@@ -134,7 +136,8 @@ func TestThemeEnvVarPrecedence(t *testing.T) {
 			// We use a temp db to avoid failures on DB setup
 			tempDir := t.TempDir()
 			dbPath := filepath.Join(tempDir, "test.db")
-			cmd.Flags().Set("dbpath", dbPath)
+			err = cmd.Flags().Set("dbpath", dbPath)
+			require.NoError(t, err)
 
 			// The PreRunE may fail on theme validation but should not panic
 			// Capture the error to check theme was resolved
@@ -146,9 +149,9 @@ func TestThemeEnvVarPrecedence(t *testing.T) {
 
 			// If there was an error, it should be a theme-related error, not DB-related
 			if err != nil {
-				assert.NotErrorIs(t, err, errDBFileExtIncorrect, "should not fail on DB extension")
-				assert.NotErrorIs(t, err, errCouldntCreateDB, "should not fail on DB creation")
-				assert.NotErrorIs(t, err, errCouldntInitializeDB, "should not fail on DB initialization")
+				require.NotErrorIs(t, err, errDBFileExtIncorrect, "should not fail on DB extension")
+				require.NotErrorIs(t, err, errCouldntCreateDB, "should not fail on DB creation")
+				require.NotErrorIs(t, err, errCouldntInitializeDB, "should not fail on DB initialization")
 			}
 		})
 	}
@@ -176,8 +179,8 @@ func TestNewRootCommand_Subcommands(t *testing.T) {
 	expectedSubcommands := []string{"gen", "report", "log", "stats", "active", "themes"}
 	for _, name := range expectedSubcommands {
 		subCmd, _, err := cmd.Find([]string{name})
-		assert.NoError(t, err, "subcommand %s should exist", name)
-		assert.NotNil(t, subCmd, "subcommand %s should not be nil", name)
+		require.NoError(t, err, "subcommand %s should exist", name)
+		require.NotNil(t, subCmd, "subcommand %s should not be nil", name)
 	}
 }
 
@@ -189,21 +192,21 @@ func TestPreRunE_DBSetupAndThemeLoading(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set the dbpath to our temp file
-	cmd.Flags().Set("dbpath", dbPath)
+	err = cmd.Flags().Set("dbpath", dbPath)
+	require.NoError(t, err)
 
 	preRunE := cmd.PreRunE
 	require.NotNil(t, preRunE)
 
 	// Execute PreRunE - should create the database
 	err = preRunE(cmd, []string{})
-
 	// Should succeed (or fail on theme if themes dir doesn't exist, but not on DB creation)
 	if err != nil {
 		// Check that it's not a DB extension error
-		assert.NotErrorIs(t, err, errDBFileExtIncorrect, "should not fail on DB extension")
+		require.NotErrorIs(t, err, errDBFileExtIncorrect, "should not fail on DB extension")
 		// Check that it's not a DB creation/initialization error
-		assert.NotErrorIs(t, err, errCouldntCreateDB, "should not fail on DB creation")
-		assert.NotErrorIs(t, err, errCouldntInitializeDB, "should not fail on DB initialization")
+		require.NotErrorIs(t, err, errCouldntCreateDB, "should not fail on DB creation")
+		require.NotErrorIs(t, err, errCouldntInitializeDB, "should not fail on DB initialization")
 	}
 
 	// Verify the database file was created

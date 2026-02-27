@@ -17,6 +17,7 @@ import (
 
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *sql.DB {
+	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 
@@ -29,6 +30,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 // insertTestTask inserts a test task into the database using the persistence package
 func insertTestTask(t *testing.T, db *sql.DB, summary string, active bool) int64 {
+	t.Helper()
 	id, err := persistence.InsertTask(db, summary)
 	require.NoError(t, err)
 
@@ -43,6 +45,7 @@ func insertTestTask(t *testing.T, db *sql.DB, summary string, active bool) int64
 
 // insertTestTaskLog inserts a completed (non-active) test task log entry into the database
 func insertTestTaskLog(t *testing.T, db *sql.DB, taskID int64, beginTS, endTS time.Time, comment string) {
+	t.Helper()
 	secsSpent := int(endTS.Sub(beginTS).Seconds())
 	_, err := db.Exec(
 		"INSERT INTO task_log (task_id, begin_ts, end_ts, secs_spent, comment, active) VALUES (?, ?, ?, ?, ?, ?)",
@@ -119,7 +122,7 @@ func TestRenderTaskLogInteractiveDayLimitExceeded(t *testing.T) {
 	err := RenderTaskLog(db, style, &buf, true, dateRange, "2d", types.TaskStatusAny, true)
 
 	// THEN - should return error about interactive mode limit
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "interactive mode is not applicable")
 }
 
@@ -147,7 +150,7 @@ func TestRenderTaskLogNonInteractiveMultiDayAllowed(t *testing.T) {
 	err := RenderTaskLog(db, style, &buf, true, dateRange, "2d", types.TaskStatusAny, false)
 
 	// THEN - should succeed
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "Day 1 work")
 }
 
@@ -312,7 +315,7 @@ func TestRenderStatsInteractiveConstraint(t *testing.T) {
 	err := RenderStats(db, style, &buf, true, nil, "all", types.TaskStatusAny, true)
 
 	// THEN - should return error
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "interactive mode is not applicable")
 }
 
@@ -333,7 +336,7 @@ func TestRenderStatsNonInteractiveAllAllowed(t *testing.T) {
 	err := RenderStats(db, style, &buf, true, nil, "all", types.TaskStatusAny, false)
 
 	// THEN - should succeed
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "All Mode Task")
 }
 
@@ -347,7 +350,7 @@ func TestShowActiveTaskNoActiveTask(t *testing.T) {
 	err := ShowActiveTask(db, &buf, "{{task}} - {{time}}")
 
 	// THEN
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, buf.String())
 }
 
@@ -373,7 +376,7 @@ func TestShowActiveTaskWithActiveTask(t *testing.T) {
 	err = ShowActiveTask(db, &buf, template)
 
 	// THEN - output should contain substituted task name and time
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	output := buf.String()
 	assert.Contains(t, output, "Active Tracking Task")
 	assert.Contains(t, output, "30m")
@@ -397,6 +400,6 @@ func TestShowActiveTaskTemplateSubstitution(t *testing.T) {
 	err := ShowActiveTask(db, &buf, template)
 
 	// THEN - since there's no active task being tracked, output is empty
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, buf.String())
 }
