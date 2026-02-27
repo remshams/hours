@@ -22,17 +22,17 @@ func captureStderr(t *testing.T, fn func()) string {
 
 	defer func() {
 		os.Stderr = oldStderr
-		w.Close()
-		r.Close()
+		_ = w.Close()
+		_ = r.Close()
 	}()
 
 	fn()
 
 	// Close the write end to signal EOF to the reader
-	w.Close()
+	_ = w.Close()
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 
 	return buf.String()
 }
