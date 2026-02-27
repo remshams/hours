@@ -215,8 +215,8 @@ Done criteria:
 | T-010 | root pre-run/env/flag | **done** | PR-2 | Added tests for invalid DB extension, env/flag precedence, default values, subcommands |
 | T-011 | themes error paths | **done** | PR-2 | Added tests for invalid theme names and theme creation |
 | T-012 | error output behavior | **done** | PR-2 | Added tests for all user-facing error messages to stderr |
-| T-020 | navigation transitions | todo | PR-3 | |
-| T-023 | resize/viewport edge cases | todo | PR-3 | |
+| T-020 | navigation transitions | **done** | PR-3 | Added tests for 1/2/3 keys, tab/shift+tab, ? help toggle, escape/q back navigation, ctrl+c quit |
+| T-023 | resize/viewport edge cases | **done** | PR-3 | Added tests for below min dimensions, recovery, viewport scroll guards |
 | T-021 | task/tracking flows | todo | PR-4 | |
 | T-022 | task log ops | todo | PR-5 | |
 | T-030 | RenderTaskLog/getTaskLog | todo | PR-6 | |
