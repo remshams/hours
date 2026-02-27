@@ -217,12 +217,12 @@ Done criteria:
 | T-012 | error output behavior | **done** | PR-2 | Added tests for all user-facing error messages to stderr |
 | T-020 | navigation transitions | **done** | PR-3 | Added tests for 1/2/3 keys, tab/shift+tab, ? help toggle, escape/q back navigation, ctrl+c quit |
 | T-023 | resize/viewport edge cases | **done** | PR-3 | Added tests for below min dimensions, recovery, viewport scroll guards |
-| T-021 | task/tracking flows | todo | PR-4 | |
-| T-022 | task log ops | todo | PR-5 | |
-| T-030 | RenderTaskLog/getTaskLog | todo | PR-6 | |
-| T-031 | RenderReport/getReport/getReportAgg | todo | PR-6 | |
-| T-032 | RenderStats/getStats/ShowActiveTask | todo | PR-6 | |
-| T-040 | journey harness | todo | PR-7 | |
+| T-021 | task/tracking flows | **done** | PR-4 | Added tests for task create/update, start/stop tracking, quick switch |
+| T-022 | task log ops | **done** | PR-5 | Added tests for deactivate/activate, delete, move operations |
+| T-030 | RenderTaskLog/getTaskLog | **done** | PR-6 | Added tests for empty/non-empty state, interactive limits, multi-day |
+| T-031 | RenderReport/getReport/getReportAgg | **done** | PR-6 | Added tests for no entries, multi-day, aggregate/non-aggregate reports |
+| T-032 | RenderStats/getStats/ShowActiveTask | **done** | PR-6 | Added tests for all/range modes, interactive constraints, active template |
+| T-040 | journey harness | **done** | PR-7 | Added comprehensive harness with DB seeding, TUI helpers, assertions |
 | T-041 | journey flow A | todo | PR-8 | |
 | T-042 | journey flow B | todo | PR-8 | |
 | T-043 | optional journey snapshots | todo | PR-8 | optional |
