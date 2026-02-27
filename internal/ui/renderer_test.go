@@ -360,30 +360,33 @@ func TestShowActiveTaskWithActiveTask(t *testing.T) {
 	// Insert task with active tracking
 	taskID := insertTestTask(t, db, "Active Tracking Task", true)
 	beginTS := time.Now().Add(-30 * time.Minute)
-	endTS := time.Now() // Will be updated
-	insertTestTaskLog(t, db, taskID, beginTS, endTS, "Active work")
 
-	// Mark as active by updating the task log end_ts to a future time (indicating active tracking)
-	// Note: In the real app, active tracking is handled differently, but for this test,
-	// we'll verify the template substitution works
+	// Insert an ACTIVE task log (active=true, no end_ts)
+	_, err := db.Exec(
+		"INSERT INTO task_log (task_id, begin_ts, secs_spent, comment, active) VALUES (?, ?, ?, ?, ?)",
+		taskID, beginTS, 0, "Active work", true,
+	)
+	require.NoError(t, err)
 
-	// WHEN
+	// WHEN - call ShowActiveTask with template
 	template := "Currently working on: {{task}} ({{time}})"
-	err := ShowActiveTask(db, &buf, template)
+	err = ShowActiveTask(db, &buf, template)
 
-	// THEN
+	// THEN - output should contain substituted task name and time
 	assert.NoError(t, err)
-	// Result will depend on database state, but should contain something
-	// If no active task, it returns empty which is also valid
+	output := buf.String()
+	assert.Contains(t, output, "Active Tracking Task")
+	assert.Contains(t, output, "30m")
+	assert.Contains(t, output, "Currently working on:")
 }
 
 func TestShowActiveTaskTemplateSubstitution(t *testing.T) {
-	// GIVEN
+	// GIVEN - no active task in database
 	db := setupTestDB(t)
 	defer db.Close()
 	var buf bytes.Buffer
 
-	// Insert a completed task log (not active)
+	// Insert a task but only completed (non-active) task log
 	taskID := insertTestTask(t, db, "Test Task", true)
 	start := time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
 	end := start.Add(2 * time.Hour)
@@ -395,6 +398,5 @@ func TestShowActiveTaskTemplateSubstitution(t *testing.T) {
 
 	// THEN - since there's no active task being tracked, output is empty
 	assert.NoError(t, err)
-	// If there's no active task, it returns early with nil error
-	// We can't easily simulate active tracking without more DB setup
+	assert.Empty(t, buf.String())
 }

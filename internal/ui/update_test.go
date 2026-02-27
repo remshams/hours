@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // T-020: Navigation and view transitions
@@ -505,11 +506,27 @@ func TestViewportScrollDownAtBottomDoesNotScroll(t *testing.T) {
 	m.activeView = helpView
 	m.helpVPReady = true
 
-	// First scroll to bottom by setting content and position
-	m.helpVP.SetContent(getHelpText(m.style))
-	// Since we can't easily scroll in tests without rendering, we verify the guard logic exists
-	// by checking that the viewports are properly initialized
-	assert.True(t, m.helpVP.AtTop())
+	// Set up content that exceeds viewport height so we can scroll
+	longContent := "\nLine 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10\nLine 11\nLine 12\nLine 13\nLine 14\nLine 15\nLine 16\nLine 17\nLine 18\nLine 19\nLine 20\nLine 21\nLine 22\nLine 23\nLine 24\nLine 25\nLine 26\nLine 27\nLine 28\nLine 29\nLine 30"
+	m.helpVP.SetContent(longContent)
+
+	// Scroll down multiple times to reach the bottom
+	for i := 0; i < 50; i++ {
+		m.handleRequestToScrollVPDown()
+	}
+
+	// Verify we're at the bottom
+	require.True(t, m.helpVP.AtBottom(), "viewport should be at bottom after scrolling")
+	initialYOffset := m.helpVP.YOffset
+
+	// WHEN - attempt to scroll down more when already at bottom
+	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
+	newM, _ := m.Update(keyMsg)
+	model := newM.(Model)
+
+	// THEN - viewport should still be at bottom and YOffset unchanged
+	assert.True(t, model.helpVP.AtBottom(), "viewport should still be at bottom")
+	assert.Equal(t, initialYOffset, model.helpVP.YOffset, "YOffset should not increase when scrolling at bottom")
 }
 
 func TestViewportScrollUpInTaskLogDetailsView(t *testing.T) {
