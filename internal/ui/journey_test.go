@@ -67,7 +67,7 @@ func newJourneyTestHarness(t *testing.T) *journeyTestHarness {
 // cleanup closes the database connection
 func (h *journeyTestHarness) cleanup() {
 	if h.db != nil {
-		h.db.Close()
+		_ = h.db.Close()
 	}
 }
 
@@ -89,7 +89,7 @@ func (h *journeyTestHarness) insertTaskLog(taskID int, beginTS, endTS time.Time,
 	tlogID, err := persistence.InsertManualTL(h.db, taskID, beginTS, endTS, &comment)
 	require.NoError(h.t, err)
 
-	return int(tlogID)
+	return tlogID
 }
 
 // startTracking starts tracking time on the currently selected task
@@ -154,6 +154,8 @@ func (h *journeyTestHarness) createTask(summary string) {
 }
 
 // updateTask updates the currently selected task's summary
+//
+//nolint:unused // Future test helper
 func (h *journeyTestHarness) updateTask(newSummary string) {
 	// Enter task update view
 	h.model.handleRequestToUpdateTask()
@@ -181,11 +183,15 @@ func (h *journeyTestHarness) selectTask(index int) {
 }
 
 // getActiveTaskID returns the ID of the currently active (being tracked) task
+//
+//nolint:unused // Future test helper
 func (h *journeyTestHarness) getActiveTaskID() int {
 	return h.model.activeTaskID
 }
 
 // isTrackingActive returns true if time tracking is currently active
+//
+//nolint:unused // Future test helper
 func (h *journeyTestHarness) isTrackingActive() bool {
 	return h.model.trackingActive
 }
@@ -228,6 +234,8 @@ func (h *journeyTestHarness) getTaskSecsSpent(id int) int {
 }
 
 // goToTaskListView navigates to the task list view (simulates going back from taskLogView)
+//
+//nolint:unused // Future test helper
 func (h *journeyTestHarness) goToTaskListView() {
 	// From taskLogView, goBackward goes to taskListView
 	// From inactiveTaskListView, goForward goes to taskListView
@@ -335,6 +343,8 @@ func (h *journeyTestHarness) editSavedTaskLog(newBeginTS, newEndTS time.Time, ne
 }
 
 // moveTaskLogToTask moves the currently selected task log to a target task
+//
+//nolint:unused // Future test helper
 func (h *journeyTestHarness) moveTaskLogToTask(targetTaskIndex int) {
 	// Enter move view (this directly changes the view, no command returned)
 	cmd := h.model.handleRequestToMoveTaskLog()
@@ -367,7 +377,7 @@ func (h *journeyTestHarness) moveTaskLogToTaskByID(targetTaskID int) {
 	// Find the target task by ID in the targetTasksList
 	targetItems := h.model.targetTasksList.Items()
 	targetIndex := -1
-	for i := 0; i < len(targetItems); i++ {
+	for i := range targetItems {
 		task, ok := targetItems[i].(*types.Task)
 		if ok && task.ID == targetTaskID {
 			targetIndex = i
@@ -471,6 +481,8 @@ func (h *journeyTestHarness) assertTrackingState(expectedActive bool, expectedTa
 }
 
 // assertMessage asserts the current user message
+//
+//nolint:unused // Future test helper
 func (h *journeyTestHarness) assertMessage(expected string) {
 	assert.Equal(h.t, expected, h.model.message.value)
 }
@@ -725,7 +737,7 @@ func TestJourneyFlowB_EditMoveDeactivateReactivate(t *testing.T) {
 	// Find and select task1
 	items := h.model.activeTasksList.Items()
 	found := false
-	for i := 0; i < len(items); i++ {
+	for i := range items {
 		task, ok := items[i].(*types.Task)
 		if ok && task.ID == task1ID {
 			h.selectTask(i)
@@ -750,7 +762,7 @@ func TestJourneyFlowB_EditMoveDeactivateReactivate(t *testing.T) {
 	// Find and select task1 in inactive list
 	inactiveItems := h.model.inactiveTasksList.Items()
 	found = false
-	for i := 0; i < len(inactiveItems); i++ {
+	for i := range inactiveItems {
 		task, ok := inactiveItems[i].(*types.Task)
 		if ok && task.ID == task1ID {
 			h.selectInactiveTask(i)

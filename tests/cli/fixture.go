@@ -2,11 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 type Fixture struct {
@@ -49,7 +51,9 @@ func NewFixture() (Fixture, error) {
 	binPath := filepath.Join(tempDir, "hours")
 	buildArgs := []string{"build", "-o", binPath, "../../.."}
 
-	c := exec.Command("go", buildArgs...)
+	buildCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	c := exec.CommandContext(buildCtx, "go", buildArgs...)
 	buildOutput, err := c.CombinedOutput()
 	if err != nil {
 		cleanupErr := os.RemoveAll(tempDir)
@@ -83,7 +87,9 @@ func (f Fixture) RunCmd(cmd HoursCmd) (string, error) {
 		dbPath := filepath.Join(f.tempDir, "hours.db")
 		argsToUse = append(argsToUse, "--dbpath", dbPath)
 	}
-	cmdToRun := exec.Command(f.binPath, argsToUse...)
+	runCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmdToRun := exec.CommandContext(runCtx, f.binPath, argsToUse...)
 
 	cmdToRun.Env = os.Environ()
 	for key, value := range cmd.env {
@@ -104,7 +110,19 @@ func (f Fixture) RunCmd(cmd HoursCmd) (string, error) {
 			success = false
 			exitCode = exitError.ExitCode()
 		} else {
-			return "", fmt.Errorf("couldn't run command: %s", err.Error())
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+				return "", fmt.Errorf(`command timed out after 30s: %w
+----- stdout -----
+%s
+----- stderr -----
+%s`, err, stdoutBuf.String(), stderrBuf.String())
+			}
+
+			return "", fmt.Errorf(`couldn't run command: %w
+----- stdout -----
+%s
+----- stderr -----
+%s`, err, stdoutBuf.String(), stderrBuf.String())
 		}
 	}
 

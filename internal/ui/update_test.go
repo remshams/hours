@@ -251,9 +251,7 @@ func TestShiftTabBackwardNavigationInTaskListView(t *testing.T) {
 	m.activeView = taskListView
 
 	// WHEN - press shift+tab
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}, Alt: false} // shift+tab is simulated differently
-	// Actually shift+tab is "shift+tab" string
-	keyMsg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("shift+tab")}
+	keyMsg := tea.KeyMsg{Type: tea.KeyShiftTab}
 	newM, _ := m.Update(keyMsg)
 	model := newM.(Model)
 
@@ -267,7 +265,7 @@ func TestShiftTabBackwardNavigationInTaskLogView(t *testing.T) {
 	m.activeView = taskLogView
 
 	// WHEN - press shift+tab
-	keyMsg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("shift+tab")}
+	keyMsg := tea.KeyMsg{Type: tea.KeyShiftTab}
 	newM, _ := m.Update(keyMsg)
 	model := newM.(Model)
 
@@ -511,7 +509,7 @@ func TestViewportScrollDownAtBottomDoesNotScroll(t *testing.T) {
 	m.helpVP.SetContent(longContent)
 
 	// Scroll down multiple times to reach the bottom
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		m.handleRequestToScrollVPDown()
 	}
 
