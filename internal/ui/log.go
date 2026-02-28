@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"bytes"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,9 +12,6 @@ import (
 	pers "github.com/dhth/hours/internal/persistence"
 	"github.com/dhth/hours/internal/types"
 	"github.com/dhth/hours/internal/utils"
-	"github.com/olekukonko/tablewriter"
-	"github.com/olekukonko/tablewriter/renderer"
-	"github.com/olekukonko/tablewriter/tw"
 )
 
 const (
@@ -135,34 +131,5 @@ func getTaskLog(db *sql.DB,
 		headers[i] = rs.headerStyle.Render(h)
 	}
 
-	b := bytes.Buffer{}
-	table := tablewriter.NewTable(&b,
-		tablewriter.WithConfig(tablewriter.Config{
-			Header: tw.CellConfig{
-				Formatting: tw.CellFormatting{
-					Alignment:  tw.AlignCenter,
-					AutoWrap:   tw.WrapNone,
-					AutoFormat: tw.Off,
-				},
-			},
-			Row: tw.CellConfig{
-				Formatting: tw.CellFormatting{
-					Alignment: tw.AlignLeft,
-					AutoWrap:  tw.WrapNone,
-				},
-			},
-		}),
-		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{Symbols: rs.symbols(tw.StyleASCII)})),
-		tablewriter.WithHeader(headers),
-	)
-
-	if err := table.Bulk(data); err != nil {
-		return "", fmt.Errorf("%w: %s", errCouldntAddDataToTable, err.Error())
-	}
-
-	if err := table.Render(); err != nil {
-		return "", fmt.Errorf("%w: %s", errCouldntRenderTable, err.Error())
-	}
-
-	return b.String(), nil
+	return renderRecordsTable(rs, headers, nil, data)
 }
