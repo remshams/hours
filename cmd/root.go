@@ -12,9 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	c "github.com/dhth/hours/internal/common"
 	pers "github.com/dhth/hours/internal/persistence"
 	"github.com/dhth/hours/internal/types"
@@ -211,18 +209,21 @@ Sorry for breaking the upgrade step!
 ---
 
 `, msgReportIssue)
+		default:
+			if err != nil {
+				return err
+			}
 		}
 
 		if err != nil {
 			return err
 		}
 
-		if !cmd.Flags().Changed("theme") {
-			themeFromEnv := strings.TrimSpace(os.Getenv(envVarTheme))
-			if themeFromEnv != "" {
-				themeName = themeFromEnv
-			}
+		if db == nil {
+			return fmt.Errorf("database connection is nil after setup")
 		}
+
+		resolveThemeFromEnvOrFlag(cmd, &themeName, envVarTheme)
 
 		// Set the resolved theme name for testing purposes before getStyle
 		currentThemeName = themeName
@@ -249,208 +250,11 @@ summary statistics for your tracked time.
 		},
 	}
 
-	generateCmd := &cobra.Command{
-		Use:   "gen",
-		Short: "Generate dummy log entries (helpful for beginners)",
-		Long: `Generate dummy log entries.
-This is intended for new users of 'hours' so they can get a sense of its
-capabilities without actually tracking any time. It's recommended to always use
-this with a --dbpath/-d flag that points to a throwaway database.
-`,
-		PreRunE: preRun,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			if genNumDays > genNumDaysThreshold {
-				return fmt.Errorf("%w (%d)", errNumDaysExceedsThreshold, genNumDaysThreshold)
-			}
-			if genNumTasks > genNumTasksThreshold {
-				return fmt.Errorf("%w (%d)", errNumTasksExceedsThreshold, genNumTasksThreshold)
-			}
-
-			if !genSkipConfirmation {
-				fmt.Print(lipgloss.NewStyle().Foreground(lipgloss.Color(warningColor)).Render(`
-WARNING: You shouldn't run 'gen' on hours' actively used database as it'll
-create dummy entries in it. You can run it on a throwaway database by passing a
-path for it via --dbpath/-d (use it for all further invocations of 'hours' as
-well).
-`))
-				fmt.Printf(`
-The 'gen' subcommand is intended for new users of 'hours' so they can get a
-sense of its capabilities without actually tracking any time.
-
-Running with --dbpath set to: %q
-
----
-
-`, dbPathFull)
-				confirm, err := getConfirmation()
-				if err != nil {
-					return err
-				}
-				if !confirm {
-					return fmt.Errorf("%w", errIncorrectCodeEntered)
-				}
-			}
-
-			genErr := ui.GenerateData(db, genNumDays, genNumTasks)
-			if genErr != nil {
-				return fmt.Errorf("%w: %s", errCouldntGenerateData, genErr.Error())
-			}
-			fmt.Printf(`
-Successfully generated dummy data in the database file: %s
-
-Go ahead and try the following!
-
-hours --dbpath=%s
-hours --dbpath=%s report week -i
-hours --dbpath=%s log today -i
-hours --dbpath=%s stats today -i
-`, dbPath, dbPath, dbPath, dbPath, dbPath)
-			return nil
-		},
-	}
-
-	reportCmd := &cobra.Command{
-		Use:   "report [PERIOD]",
-		Short: "Output a report based on task log entries",
-		Long: fmt.Sprintf(`Output a report based on task log entries.
-
-Reports show time spent on tasks per day in the time period you specify. These
-can also be aggregated (using -a) to consolidate all task entries and show the
-cumulative time spent on each task per day.
-
-Accepts an argument, which can be one of the following:
-
-  today      for today's report
-  yest       for yesterday's report
-  3d         for a report on the last 3 days (default)
-  week       for a report on the current week
-  date       for a report for a specific date (eg. "2024/06/08")
-  range      for a report for a date range (eg. "2024/06/08...2024/06/12", "2024/06/08...today", "2024/06/08..."; shouldn't be greater than %d days)
-
-Note: If a task log continues past midnight in your local timezone, it
-will be reported on the day it ends.
-`, reportNumDaysThreshold),
-		Args:    cobra.MaximumNArgs(1),
-		PreRunE: preRun,
-		RunE: func(_ *cobra.Command, args []string) error {
-			taskStatus, err := types.ParseTaskStatus(taskStatusStr)
-			if err != nil {
-				return err
-			}
-
-			var period string
-			if len(args) == 0 {
-				period = "3d"
-			} else {
-				period = args[0]
-			}
-
-			var fullWeek bool
-			if recordsInteractive {
-				fullWeek = true
-			}
-
-			numDaysUpperBound := reportNumDaysThreshold
-			dateRange, err := types.GetDateRangeFromPeriod(period, time.Now(), fullWeek, &numDaysUpperBound)
-			if err != nil {
-				return err
-			}
-
-			return ui.RenderReport(db, style, os.Stdout, recordsOutputPlain, dateRange, period, taskStatus, reportAgg, recordsInteractive)
-		},
-	}
-
-	logCmd := &cobra.Command{
-		Use:   "log [PERIOD]",
-		Short: "Output task log entries",
-		Long: `Output task log entries.
-
-Accepts an argument, which can be one of the following:
-
-  today      for log entries from today (default)
-  yest       for log entries from yesterday
-  3d         for log entries from the last 3 days
-  week       for log entries from the current week
-  date       for log entries from a specific date (eg. "2024/06/08")
-  range      for log entries for a date range (eg. "2024/06/08...2024/06/12", "2024/06/08...today", "2024/06/08...")
-
-Note: If a task log continues past midnight in your local timezone, it'll
-appear in the log for the day it ends.
-`,
-		Args:    cobra.MaximumNArgs(1),
-		PreRunE: preRun,
-		RunE: func(_ *cobra.Command, args []string) error {
-			taskStatus, err := types.ParseTaskStatus(taskStatusStr)
-			if err != nil {
-				return err
-			}
-
-			var period string
-			if len(args) == 0 {
-				period = "today"
-			} else {
-				period = args[0]
-			}
-
-			dateRange, err := types.GetDateRangeFromPeriod(period, time.Now(), false, nil)
-			if err != nil {
-				return err
-			}
-
-			return ui.RenderTaskLog(db, style, os.Stdout, recordsOutputPlain, dateRange, period, taskStatus, recordsInteractive)
-		},
-	}
-
-	statsCmd := &cobra.Command{
-		Use:   "stats [PERIOD]",
-		Short: "Output statistics for tracked time",
-		Long: `Output statistics for tracked time.
-
-Accepts an argument, which can be one of the following:
-
-  today       show stats for today
-  yest        show stats for yesterday
-  3d          show stats for the last 3 days (default)
-  week        show stats for the current week
-  this-month  show stats for the current month
-  date        show stats for a specific date (eg. "2024/06/08")
-  range       show stats for a date range (eg. "2024/06/08...2024/06/12", "2024/06/08...today", "2024/06/08...")
-  all         show stats for all log entries
-
-Note: If a task log continues past midnight in your local timezone, it'll
-be considered in the stats for the day it ends.
-`,
-		Args:    cobra.MaximumNArgs(1),
-		PreRunE: preRun,
-		RunE: func(_ *cobra.Command, args []string) error {
-			taskStatus, err := types.ParseTaskStatus(taskStatusStr)
-			if err != nil {
-				return err
-			}
-
-			var period string
-			if len(args) == 0 {
-				period = "3d"
-			} else {
-				period = args[0]
-			}
-
-			var fullWeek bool
-			if recordsInteractive {
-				fullWeek = true
-			}
-			var dateRangePtr *types.DateRange
-			if period != "all" {
-				dateRange, err := types.GetDateRangeFromPeriod(period, time.Now(), fullWeek, nil)
-				if err != nil {
-					return err
-				}
-				dateRangePtr = &dateRange
-			}
-
-			return ui.RenderStats(db, style, os.Stdout, recordsOutputPlain, dateRangePtr, period, taskStatus, recordsInteractive)
-		},
-	}
+	generateCmd := newGenerateCmd(&db, preRun, &dbPath, &dbPathFull, &genNumDays, &genNumTasks, &genSkipConfirmation)
+	reportCmd := newReportCmd(&db, preRun, &style, &reportAgg, &recordsInteractive, &recordsOutputPlain, &taskStatusStr)
+	logCmd := newLogCmd(&db, preRun, &style, &recordsInteractive, &recordsOutputPlain, &taskStatusStr)
+	statsCmd := newStatsCmd(&db, preRun, &style, &recordsInteractive, &recordsOutputPlain, &taskStatusStr)
+	activeCmd := newActiveCmd(&db, preRun, &activeTemplate)
 
 	themesCmd := &cobra.Command{
 		Use:   "themes",
@@ -535,12 +339,7 @@ You can choose to provide only the attributes you want to change.
 		Short:   "Show JSON configuration for a theme",
 		Example: strings.TrimSuffix(showThemeConfigExamples, "\n"),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if !cmd.Flags().Changed("theme") {
-				themeFromEnv := strings.TrimSpace(os.Getenv(envVarTheme))
-				if themeFromEnv != "" {
-					themeName = themeFromEnv
-				}
-			}
+			resolveThemeFromEnvOrFlag(cmd, &themeName, envVarTheme)
 
 			thm, err := theme.Get(themeName, themesDir)
 			if err != nil {
@@ -558,25 +357,6 @@ You can choose to provide only the attributes you want to change.
 		},
 	}
 
-	activeCmd := &cobra.Command{
-		Use:   "active",
-		Short: "Show the task being actively tracked by \"hours\"",
-		Long: `Show the task being actively tracked by "hours".
-
-You can pass in a template using the --template/-t flag, which supports the
-following placeholders:
-
-  {{task}}:  for the task summary
-  {{time}}:  for the time spent so far on the active log entry
-
-eg. hours active -t ' {{task}} ({{time}}) '
-`,
-		PreRunE: preRun,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return ui.ShowActiveTask(db, os.Stdout, activeTemplate)
-		},
-	}
-
 	var err error
 	userHomeDir, err = os.UserHomeDir()
 	if err != nil {
@@ -591,37 +371,45 @@ eg. hours active -t ' {{task}} ({{time}}) '
 	themesDir = filepath.Join(userConfigDir, configDirName, themeDirName)
 
 	defaultDBPath := filepath.Join(userHomeDir, defaultDBName)
-	rootCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
-	rootCmd.Flags().StringVarP(&themeName, "theme", "t", defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
 
+	// Use shared flag helpers to reduce duplication
+	addDBPathFlag(rootCmd, &dbPath, defaultDBPath)
+	addThemeFlag(rootCmd, &themeName, defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
+
+	// generateCmd flags
 	generateCmd.Flags().Uint8Var(&genNumDays, "num-days", 30, "number of days to generate fake data for")
 	generateCmd.Flags().Uint8Var(&genNumTasks, "num-tasks", 10, "number of tasks to generate fake data for")
 	generateCmd.Flags().BoolVarP(&genSkipConfirmation, "yes", "y", false, "to skip confirmation")
-	generateCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
+	addDBPathFlag(generateCmd, &dbPath, defaultDBPath)
 
+	// reportCmd flags
 	reportCmd.Flags().BoolVarP(&reportAgg, "agg", "a", false, "whether to aggregate data by task for each day in report")
 	reportCmd.Flags().BoolVarP(&recordsInteractive, "interactive", "i", false, "whether to view report interactively")
 	reportCmd.Flags().BoolVarP(&recordsOutputPlain, "plain", "p", false, "whether to output report without any formatting")
-	reportCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
-	reportCmd.Flags().StringVarP(&taskStatusStr, "task-status", "s", "any", fmt.Sprintf("only show data for tasks with this status [possible values: %q]", types.ValidTaskStatusValues))
-	reportCmd.Flags().StringVarP(&themeName, "theme", "t", defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
+	addDBPathFlag(reportCmd, &dbPath, defaultDBPath)
+	addTaskStatusFlag(reportCmd, &taskStatusStr)
+	addThemeFlag(reportCmd, &themeName, defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
 
+	// logCmd flags
 	logCmd.Flags().BoolVarP(&recordsOutputPlain, "plain", "p", false, "whether to output logs without any formatting")
 	logCmd.Flags().BoolVarP(&recordsInteractive, "interactive", "i", false, "whether to view logs interactively")
-	logCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
-	logCmd.Flags().StringVarP(&taskStatusStr, "task-status", "s", "any", fmt.Sprintf("only show data for tasks with this status [possible values: %q]", types.ValidTaskStatusValues))
-	logCmd.Flags().StringVarP(&themeName, "theme", "t", defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
+	addDBPathFlag(logCmd, &dbPath, defaultDBPath)
+	addTaskStatusFlag(logCmd, &taskStatusStr)
+	addThemeFlag(logCmd, &themeName, defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
 
+	// statsCmd flags
 	statsCmd.Flags().BoolVarP(&recordsOutputPlain, "plain", "p", false, "whether to output stats without any formatting")
 	statsCmd.Flags().BoolVarP(&recordsInteractive, "interactive", "i", false, "whether to view stats interactively")
-	statsCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
-	statsCmd.Flags().StringVarP(&taskStatusStr, "task-status", "s", "any", fmt.Sprintf("only show data for tasks with this status [possible values: %q]", types.ValidTaskStatusValues))
-	statsCmd.Flags().StringVarP(&themeName, "theme", "t", defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
+	addDBPathFlag(statsCmd, &dbPath, defaultDBPath)
+	addTaskStatusFlag(statsCmd, &taskStatusStr)
+	addThemeFlag(statsCmd, &themeName, defaultThemeName, `UI theme to use (run "hours themes list" for allowed values)`)
 
+	// activeCmd flags
 	activeCmd.Flags().StringVarP(&activeTemplate, "template", "t", ui.ActiveTaskPlaceholder, "string template to use for outputting active task")
-	activeCmd.Flags().StringVarP(&dbPath, "dbpath", "d", defaultDBPath, "location of hours' database file")
+	addDBPathFlag(activeCmd, &dbPath, defaultDBPath)
 
-	showThemeConfigCmd.Flags().StringVarP(&themeName, "theme", "t", defaultThemeName, `UI theme to show (run "hours themes list" for allowed values)`)
+	// showThemeConfigCmd flags
+	addThemeFlag(showThemeConfigCmd, &themeName, defaultThemeName, `UI theme to show (run "hours themes list" for allowed values)`)
 
 	themesCmd.AddCommand(addThemeCmd)
 	themesCmd.AddCommand(listThemesCmd)
