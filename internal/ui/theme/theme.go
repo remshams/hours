@@ -167,97 +167,62 @@ func getBuiltIn(theme string) (Theme, error) {
 	return getBuiltInTheme(palette), nil
 }
 
+// themeColorField associates a JSON field name with its color value for
+// validation.  Using a slice of structs (rather than a map) preserves a stable
+// iteration order so that error messages are always deterministic.
+type themeColorField struct {
+	name  string
+	value string
+}
+
+// scalarColorFields returns the list of all non-slice color fields together
+// with their JSON field names, in declaration order.
+func scalarColorFields(t Theme) []themeColorField {
+	return []themeColorField{
+		{name: "activeTask", value: t.ActiveTask},
+		{name: "activeTaskBeginTime", value: t.ActiveTaskBeginTime},
+		{name: "activeTasks", value: t.ActiveTasks},
+		{name: "formContext", value: t.FormContext},
+		{name: "formFieldName", value: t.FormFieldName},
+		{name: "formHelp", value: t.FormHelp},
+		{name: "helpMsg", value: t.HelpMsg},
+		{name: "helpPrimary", value: t.HelpPrimary},
+		{name: "helpSecondary", value: t.HelpSecondary},
+		{name: "inactiveTasks", value: t.InactiveTasks},
+		{name: "initialHelpMsg", value: t.InitialHelpMsg},
+		{name: "listItemDesc", value: t.ListItemDesc},
+		{name: "listItemTitle", value: t.ListItemTitle},
+		{name: "recordsBorder", value: t.RecordsBorder},
+		{name: "recordsDateRange", value: t.RecordsDateRange},
+		{name: "recordsFooter", value: t.RecordsFooter},
+		{name: "recordsHeader", value: t.RecordsHeader},
+		{name: "recordsHelp", value: t.RecordsHelp},
+		{name: "taskEntry", value: t.TaskEntry},
+		{name: "taskLogDetails", value: t.TaskLogDetailsViewTitle},
+		{name: "taskLogEntry", value: t.TaskLogEntry},
+		{name: "taskLogFormError", value: t.TaskLogFormError},
+		{name: "taskLogFormInfo", value: t.TaskLogFormInfo},
+		{name: "taskLogFormWarn", value: t.TaskLogFormWarn},
+		{name: "taskLogList", value: t.TaskLogList},
+		{name: "titleForeground", value: t.TitleForeground},
+		{name: "toolName", value: t.ToolName},
+		{name: "tracking", value: t.Tracking},
+	}
+}
+
 func getInvalidColors(theme Theme) []string {
 	var invalidColors []string
 
-	if !isValidColor(theme.ActiveTask) {
-		invalidColors = append(invalidColors, "activeTask")
+	for _, field := range scalarColorFields(theme) {
+		if !isValidColor(field.value) {
+			invalidColors = append(invalidColors, field.name)
+		}
 	}
-	if !isValidColor(theme.ActiveTaskBeginTime) {
-		invalidColors = append(invalidColors, "activeTaskBeginTime")
-	}
-	if !isValidColor(theme.ActiveTasks) {
-		invalidColors = append(invalidColors, "activeTasks")
-	}
-	if !isValidColor(theme.FormContext) {
-		invalidColors = append(invalidColors, "formContext")
-	}
-	if !isValidColor(theme.FormFieldName) {
-		invalidColors = append(invalidColors, "formFieldName")
-	}
-	if !isValidColor(theme.FormHelp) {
-		invalidColors = append(invalidColors, "formHelp")
-	}
-	if !isValidColor(theme.HelpMsg) {
-		invalidColors = append(invalidColors, "helpMsg")
-	}
-	if !isValidColor(theme.HelpPrimary) {
-		invalidColors = append(invalidColors, "helpPrimary")
-	}
-	if !isValidColor(theme.HelpSecondary) {
-		invalidColors = append(invalidColors, "helpSecondary")
-	}
-	if !isValidColor(theme.InactiveTasks) {
-		invalidColors = append(invalidColors, "inactiveTasks")
-	}
-	if !isValidColor(theme.InitialHelpMsg) {
-		invalidColors = append(invalidColors, "initialHelpMsg")
-	}
-	if !isValidColor(theme.ListItemDesc) {
-		invalidColors = append(invalidColors, "listItemDesc")
-	}
-	if !isValidColor(theme.ListItemTitle) {
-		invalidColors = append(invalidColors, "listItemTitle")
-	}
-	if !isValidColor(theme.RecordsBorder) {
-		invalidColors = append(invalidColors, "recordsBorder")
-	}
-	if !isValidColor(theme.RecordsDateRange) {
-		invalidColors = append(invalidColors, "recordsDateRange")
-	}
-	if !isValidColor(theme.RecordsFooter) {
-		invalidColors = append(invalidColors, "recordsFooter")
-	}
-	if !isValidColor(theme.RecordsHeader) {
-		invalidColors = append(invalidColors, "recordsHeader")
-	}
-	if !isValidColor(theme.RecordsHelp) {
-		invalidColors = append(invalidColors, "recordsHelp")
-	}
-	if !isValidColor(theme.TaskLogDetailsViewTitle) {
-		invalidColors = append(invalidColors, "taskLogDetails")
-	}
-	if !isValidColor(theme.TaskEntry) {
-		invalidColors = append(invalidColors, "taskEntry")
-	}
-	if !isValidColor(theme.TaskLogEntry) {
-		invalidColors = append(invalidColors, "taskLogEntry")
-	}
-	if !isValidColor(theme.TaskLogList) {
-		invalidColors = append(invalidColors, "taskLogList")
-	}
-	if !isValidColor(theme.TaskLogFormInfo) {
-		invalidColors = append(invalidColors, "taskLogFormInfo")
-	}
-	if !isValidColor(theme.TaskLogFormWarn) {
-		invalidColors = append(invalidColors, "taskLogFormWarn")
-	}
-	if !isValidColor(theme.TaskLogFormError) {
-		invalidColors = append(invalidColors, "taskLogFormError")
-	}
+
 	for i, color := range theme.Tasks {
 		if !isValidColor(color) {
 			invalidColors = append(invalidColors, fmt.Sprintf("tasks[%d]", i+1))
 		}
-	}
-	if !isValidColor(theme.TitleForeground) {
-		invalidColors = append(invalidColors, "titleForeground")
-	}
-	if !isValidColor(theme.ToolName) {
-		invalidColors = append(invalidColors, "toolName")
-	}
-	if !isValidColor(theme.Tracking) {
-		invalidColors = append(invalidColors, "tracking")
 	}
 
 	return invalidColors
