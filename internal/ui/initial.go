@@ -10,6 +10,25 @@ import (
 	"github.com/dhth/hours/internal/types"
 )
 
+// setupList applies the shared defaults to a list model: title, status-bar item
+// name, quit-keybinding, help, title style, and page-navigation keybindings.
+// filteringEnabled controls whether the list supports filtering.
+func setupList(l *list.Model, title, singularItem, pluralItem string, bgColor lipgloss.Color, fgColor lipgloss.Color, filteringEnabled bool) {
+	l.Title = title
+	l.SetStatusBarItemName(singularItem, pluralItem)
+	if !filteringEnabled {
+		l.SetFilteringEnabled(false)
+	}
+	l.DisableQuitKeybindings()
+	l.SetShowHelp(false)
+	l.Styles.Title = l.Styles.Title.
+		Foreground(fgColor).
+		Background(bgColor).
+		Bold(true)
+	l.KeyMap.PrevPage.SetKeys("left", "h", "pgup")
+	l.KeyMap.NextPage.SetKeys("right", "l", "pgdown")
+}
+
 const (
 	tlCommentLengthLimit = 3000
 	textInputWidth       = 80
@@ -81,56 +100,17 @@ This can be used to record details about your work on this task.`
 		debug:             debug,
 		logFramesCfg:      logFramesCfg,
 	}
-	m.activeTasksList.Title = "Tasks"
-	m.activeTasksList.SetStatusBarItemName("task", "tasks")
-	m.activeTasksList.DisableQuitKeybindings()
-	m.activeTasksList.SetShowHelp(false)
-	m.activeTasksList.Styles.Title = m.activeTasksList.Styles.Title.
-		Foreground(lipgloss.Color(style.theme.TitleForeground)).
-		Background(lipgloss.Color(style.theme.ActiveTasks)).
-		Bold(true)
-	m.activeTasksList.KeyMap.PrevPage.SetKeys("left", "h", "pgup")
-	m.activeTasksList.KeyMap.NextPage.SetKeys("right", "l", "pgdown")
-
-	m.taskLogList.Title = "Task Logs (last 50)"
-	m.taskLogList.SetStatusBarItemName("entry", "entries")
-	m.taskLogList.SetFilteringEnabled(false)
-	m.taskLogList.DisableQuitKeybindings()
-	m.taskLogList.SetShowHelp(false)
-	m.taskLogList.Styles.Title = m.taskLogList.Styles.Title.
-		Foreground(lipgloss.Color(style.theme.TitleForeground)).
-		Background(lipgloss.Color(style.theme.TaskLogList)).
-		Bold(true)
-	m.taskLogList.KeyMap.PrevPage.SetKeys("left", "h", "pgup")
-	m.taskLogList.KeyMap.NextPage.SetKeys("right", "l", "pgdown")
-
-	m.inactiveTasksList.Title = "Inactive Tasks"
-	m.inactiveTasksList.SetStatusBarItemName("task", "tasks")
-	m.inactiveTasksList.DisableQuitKeybindings()
-	m.inactiveTasksList.SetShowHelp(false)
-	m.inactiveTasksList.Styles.Title = m.inactiveTasksList.Styles.Title.
-		Foreground(lipgloss.Color(style.theme.TitleForeground)).
-		Background(lipgloss.Color(style.theme.InactiveTasks)).
-		Bold(true)
-	m.inactiveTasksList.KeyMap.PrevPage.SetKeys("left", "h", "pgup")
-	m.inactiveTasksList.KeyMap.NextPage.SetKeys("right", "l", "pgdown")
+	titleFG := lipgloss.Color(style.theme.TitleForeground)
+	setupList(&m.activeTasksList, "Tasks", "task", "tasks", lipgloss.Color(style.theme.ActiveTasks), titleFG, true)
+	setupList(&m.taskLogList, "Task Logs (last 50)", "entry", "entries", lipgloss.Color(style.theme.TaskLogList), titleFG, false)
+	setupList(&m.inactiveTasksList, "Inactive Tasks", "task", "tasks", lipgloss.Color(style.theme.InactiveTasks), titleFG, true)
 
 	m.targetTasksList = list.New([]list.Item{},
 		newItemDelegate(style.listItemTitleColor,
 			style.listItemDescColor,
 			lipgloss.Color(style.theme.ActiveTasks),
 		), listWidth, 0)
-	m.targetTasksList.SetFilteringEnabled(false)
-	m.targetTasksList.Title = "Select Target Task"
-	m.targetTasksList.SetStatusBarItemName("task", "tasks")
-	m.targetTasksList.DisableQuitKeybindings()
-	m.targetTasksList.SetShowHelp(false)
-	m.targetTasksList.Styles.Title = m.targetTasksList.Styles.Title.
-		Foreground(lipgloss.Color(style.theme.TitleForeground)).
-		Background(lipgloss.Color(style.theme.ActiveTasks)).
-		Bold(true)
-	m.targetTasksList.KeyMap.PrevPage.SetKeys("left", "h", "pgup")
-	m.targetTasksList.KeyMap.NextPage.SetKeys("right", "l", "pgdown")
+	setupList(&m.targetTasksList, "Select Target Task", "task", "tasks", lipgloss.Color(style.theme.ActiveTasks), titleFG, false)
 
 	return m
 }
