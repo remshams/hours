@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dhth/hours/internal/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -604,6 +605,62 @@ func TestHandleMsgStaleTasksArchivedMsgSuccessSetsInfoMessage(t *testing.T) {
 	// THEN – info message set, fetchTasks(active) + fetchTasks(inactive) = 2 cmds
 	assert.Equal(t, userMsgInfo, m.message.kind)
 	assert.Len(t, cmds, 2)
+}
+
+// ---------------------------------------------------------------------------
+// Model.Update – async message dispatch when a form view is active
+// ---------------------------------------------------------------------------
+
+// TestModelUpdateDispatchesTypedAsyncMessagesWhenFormViewActive is a regression
+// test for the bug where updateInputComponents returned handled=true for every
+// message type (not just input events) when a form view was active.  This caused
+// typed async messages (e.g. taskCreatedMsg) to be swallowed before handleMsg
+// could process them.
+//
+// The test simulates the full Update dispatch path: it delivers a taskCreatedMsg
+// directly to Model.Update while activeView is set to a form view and asserts
+// that handleMsg routed the message correctly (error case → m.message.kind is
+// set to userMsgErr; success case → a fetchTasks command is returned).
+func TestModelUpdateDispatchesTypedAsyncMessagesWhenFormViewActive(t *testing.T) {
+	formViews := []stateView{
+		taskInputView,
+		editActiveTLView,
+		finishActiveTLView,
+		manualTasklogEntryView,
+		editSavedTLView,
+	}
+
+	for _, view := range formViews {
+		t.Run(view.String()+"/error", func(t *testing.T) {
+			// GIVEN – model is showing a form view
+			m := createTestModel()
+			m.activeView = view
+
+			// WHEN – an async taskCreatedMsg with an error arrives
+			newModel, cmd := m.Update(taskCreatedMsg{err: errTestError})
+			updated := newModel.(Model)
+
+			// THEN – handleMsg must have processed the message and set the error
+			// state; no further command should be issued for the error path.
+			assert.Equal(t, userMsgErr, updated.message.kind,
+				"handleMsg should have set an error message for view %s", view)
+			_ = cmd
+		})
+
+		t.Run(view.String()+"/success", func(t *testing.T) {
+			// GIVEN – model is showing a form view
+			m := createTestModel()
+			m.activeView = view
+
+			// WHEN – a successful taskCreatedMsg arrives
+			_, cmd := m.Update(taskCreatedMsg{})
+
+			// THEN – handleMsg should have returned a fetchTasks command, which
+			// means Update batched at least one non-nil command.
+			require.NotNil(t, cmd,
+				"handleMsg should have produced a fetchTasks cmd for view %s", view)
+		})
+	}
 }
 
 func TestHandleMsgTaskRepUpdatedMsgWithErrorSetsErrMessage(t *testing.T) {

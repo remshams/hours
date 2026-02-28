@@ -11,13 +11,13 @@ This document captures sensible refactors identified after reviewing the current
 
 ## Top Opportunities (Ranked)
 
-1. **Decompose UI state machine in `internal/ui/update.go`**
+1. **Decompose UI state machine in `internal/ui/update.go`** ✅ **DONE (PR6)**
    - Current `Model.Update` is large and mixes: global key handling, form key handling, view transitions, and message handling.
    - Proposed split:
-     - `handleGlobalKeys` (quit, resize, global shortcuts)
-     - `handleFormKeys` (submit/escape/tab/time-shifts)
-     - `handleListKeys` (task/log/inactive/move/help interactions)
-     - `handleMsg` (typed message handlers)
+      - `handleFilteringKeys` (quit, resize, global shortcuts)
+      - `handleFormKeys` (submit/escape/tab/time-shifts)
+      - `handleListKeys` (task/log/inactive/move/help interactions)
+      - `handleMsg` (typed message handlers)
    - Expected benefit: easier reasoning about keybindings and lower regression risk when adding new views.
 
 2. **Unify report rendering paths in `internal/ui/report.go`** ✅ **DONE (PR3)**
@@ -37,7 +37,7 @@ This document captures sensible refactors identified after reviewing the current
      - `newRecordsTable(buffer, styles, headers, footer)` with shared `tablewriter.Config` and renderer setup.
    - Expected benefit: single place to change rendering behavior.
 
-4. **Break up `NewRootCommand` in `cmd/root.go`**
+4. **Break up `NewRootCommand` in `cmd/root.go`** ✅ **DONE (PR4)**
    - Current function mixes DB setup, env behavior, command construction, and flag wiring.
    - Proposed split:
      - `newGenerateCmd`, `newReportCmd`, `newLogCmd`, `newStatsCmd`, `newActiveCmd`, `newThemesCmd`
@@ -45,7 +45,7 @@ This document captures sensible refactors identified after reviewing the current
    - Note: `HOURS_THEME` env-var lookup is duplicated in `preRun` and `showThemeConfigCmd.RunE`; extract to `cmd/utils.go`.
    - Expected benefit: much clearer command boundaries and easier extension.
 
-5. **Remove repeated flag registration logic in `cmd/root.go`**
+5. **Remove repeated flag registration logic in `cmd/root.go`** ✅ **DONE (PR4)**
    - Repeated `dbpath`, `theme`, and `task-status` flag registrations.
    - Proposed helpers:
      - `addDBPathFlag(cmd, &dbPath, defaultDBPath)`
@@ -69,7 +69,7 @@ This document captures sensible refactors identified after reviewing the current
    - Proposed helpers for safe selection per list type. ✅ **DONE (PR2)**
    - Expected benefit: less boilerplate and more consistent errors.
 
-8. **Make theme color validation data-driven in `internal/ui/theme/theme.go`**
+8. **Make theme color validation data-driven in `internal/ui/theme/theme.go`** ✅ **DONE (PR7)**
    - `getInvalidColors` is a long chain of manual checks (94 lines, 28+ individual blocks).
    - Proposed approach:
      - map-like list of `{name, value}` and loop.
@@ -109,12 +109,12 @@ This document captures sensible refactors identified after reviewing the current
 - ✅ Extract `reportSummaryBudget` helper, eliminating copy-pasted switch block between `getReport`/`getReportAgg`.
 - ✅ Unified `getReport` + `getReportAgg` into `renderReportGrid` pipeline with `reportGridEntry` interface and `perDayFetcher` injection.
 
-### PR 4: CLI Command Modularization
+### PR 4: CLI Command Modularization ✅ DONE
 
-- Split `NewRootCommand` into subcommand builder functions.
-- Introduce shared flag helpers and central pre-run behavior.
-- Extract duplicated `HOURS_THEME` env-var lookup.
-- Preserve existing command UX/flags exactly.
+- ✅ Split `NewRootCommand` into subcommand builder functions.
+- ✅ Introduced shared flag helpers and central pre-run behavior.
+- ✅ Extracted duplicated `HOURS_THEME` env-var lookup.
+- Existing command UX/flags preserved exactly.
 
 ### PR 5: Persistence Simplification ✅ DONE
 
@@ -127,15 +127,17 @@ This document captures sensible refactors identified after reviewing the current
 - Transaction helpers already consolidated (done).
 - SQL semantics unchanged.
 
-### PR 6: UI Update Decomposition (Highest Risk)
+### PR 6: UI Update Decomposition (Highest Risk) ✅ DONE
 
-- Split `Model.Update` into focused handlers by concern.
-- Verify keybindings and view transitions comprehensively.
+- ✅ Split `Model.Update` into focused handlers: `handleFilteringKeys`, `handleFormKeys`, `updateInputComponents`, `handleListKeys`, `handleMsg`, `updateActiveView`.
+- ✅ Added ~50 unit tests in `internal/ui/update_handlers_test.go`.
+- ✅ All keybindings and view transitions verified; existing `update_test.go` unchanged as regression cover.
 
-### PR 7: Theme Validation Cleanup
+### PR 7: Theme Validation Cleanup ✅ DONE
 
-- Convert `getInvalidColors` to data-driven field validation.
-- Keep error messages and field names stable.
+- ✅ Introduced `themeColorField` struct and `scalarColorFields()` helper returning all 28 scalar fields in declaration order.
+- ✅ `getInvalidColors` reduced from 94-line manual if-chain to a loop + tasks slice pass.
+- ✅ Added dedicated unit tests in `internal/ui/theme/theme_validation_test.go`; existing `theme_test.go` unchanged.
 
 ## Caution Areas
 
