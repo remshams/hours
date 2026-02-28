@@ -45,7 +45,7 @@ func (m *Model) getCmdToCreateOrUpdateTask() tea.Cmd {
 		cmd = createTask(m.db, m.taskInputs[summaryField].Value())
 		m.taskInputs[summaryField].SetValue("")
 	case taskUpdateCxt:
-		selectedTask, ok := m.activeTasksList.SelectedItem().(*types.Task)
+		selectedTask, ok := m.selectedActiveTask()
 		if !ok {
 			m.message = errMsg("Something went wrong")
 			return nil
@@ -127,7 +127,7 @@ func (m *Model) getCmdToCreateOrEditTL() tea.Cmd {
 	switch m.tasklogSaveType {
 	case tasklogInsert:
 		m.activeView = taskListView
-		task, ok := m.activeTasksList.SelectedItem().(*types.Task)
+		task, ok := m.selectedActiveTask()
 		if !ok {
 			m.message = errMsg(genericErrorMsg)
 			return nil
@@ -135,7 +135,7 @@ func (m *Model) getCmdToCreateOrEditTL() tea.Cmd {
 		cmd = insertManualTL(m.db, task.ID, beginTS, endTS, comment)
 	case tasklogUpdate:
 		m.activeView = taskLogView
-		tl, ok := m.taskLogList.SelectedItem().(types.TaskLogEntry)
+		tl, ok := m.selectedTaskLogEntry()
 		if !ok {
 			m.message = errMsg(genericErrorMsg)
 			return nil
@@ -370,7 +370,7 @@ func (m *Model) handleRequestToEditSavedTL() {
 		return
 	}
 
-	tl, ok := m.taskLogList.SelectedItem().(types.TaskLogEntry)
+	tl, ok := m.selectedTaskLogEntry()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return
@@ -407,7 +407,7 @@ func (m *Model) getCmdToDeactivateTask() tea.Cmd {
 		return nil
 	}
 
-	task, ok := m.activeTasksList.SelectedItem().(*types.Task)
+	task, ok := m.selectedActiveTask()
 	if !ok {
 		m.message = errMsg(msgCouldntSelectATask)
 		return nil
@@ -417,7 +417,7 @@ func (m *Model) getCmdToDeactivateTask() tea.Cmd {
 }
 
 func (m *Model) getCmdToDeleteTL() tea.Cmd {
-	entry, ok := m.taskLogList.SelectedItem().(types.TaskLogEntry)
+	entry, ok := m.selectedTaskLogEntry()
 	if !ok {
 		m.message = errMsg("Couldn't delete task log entry")
 		return nil
@@ -431,7 +431,7 @@ func (m *Model) handleRequestToMoveTaskLog() tea.Cmd {
 		return nil
 	}
 
-	entry, ok := m.taskLogList.SelectedItem().(types.TaskLogEntry)
+	entry, ok := m.selectedTaskLogEntry()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return nil
@@ -467,7 +467,7 @@ func (m *Model) handleRequestToMoveTaskLog() tea.Cmd {
 }
 
 func (m *Model) handleTargetTaskSelection() tea.Cmd {
-	task, ok := m.targetTasksList.SelectedItem().(*types.Task)
+	task, ok := m.selectedTargetTask()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return nil
@@ -482,7 +482,7 @@ func (m *Model) getCmdToActivateDeactivatedTask() tea.Cmd {
 		return nil
 	}
 
-	task, ok := m.inactiveTasksList.SelectedItem().(*types.Task)
+	task, ok := m.selectedInactiveTask()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return nil
@@ -492,7 +492,7 @@ func (m *Model) getCmdToActivateDeactivatedTask() tea.Cmd {
 }
 
 func (m *Model) getCmdToStartTracking() tea.Cmd {
-	task, ok := m.activeTasksList.SelectedItem().(*types.Task)
+	task, ok := m.selectedActiveTask()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return nil
@@ -523,7 +523,7 @@ func (m *Model) handleRequestToStopTracking() {
 }
 
 func (m *Model) getCmdToQuickSwitchTracking() tea.Cmd {
-	task, ok := m.activeTasksList.SelectedItem().(*types.Task)
+	task, ok := m.selectedActiveTask()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return nil
@@ -565,7 +565,7 @@ func (m *Model) handleRequestToUpdateTask() {
 		return
 	}
 
-	task, ok := m.activeTasksList.SelectedItem().(*types.Task)
+	task, ok := m.selectedActiveTask()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return
@@ -584,9 +584,9 @@ func (m *Model) handleCopyTaskSummary() {
 
 	switch m.activeView {
 	case taskListView:
-		selectedTask, ok = m.activeTasksList.SelectedItem().(*types.Task)
+		selectedTask, ok = m.selectedActiveTask()
 	case inactiveTaskListView:
-		selectedTask, ok = m.inactiveTasksList.SelectedItem().(*types.Task)
+		selectedTask, ok = m.selectedInactiveTask()
 	default:
 		return
 	}
@@ -639,7 +639,7 @@ func (m *Model) handleRequestToViewTLDetails() {
 		return
 	}
 
-	tl, ok := m.taskLogList.SelectedItem().(types.TaskLogEntry)
+	tl, ok := m.selectedTaskLogEntry()
 	if !ok {
 		m.message = errMsg(genericErrorMsg)
 		return
@@ -961,4 +961,28 @@ func (m *Model) clearAllTaskLogInputs() {
 		m.tLInputs[i].SetValue("")
 	}
 	m.tLCommentInput.SetValue("")
+}
+
+// selectedActiveTask returns the currently selected item in the active tasks list cast to *types.Task.
+func (m *Model) selectedActiveTask() (*types.Task, bool) {
+	task, ok := m.activeTasksList.SelectedItem().(*types.Task)
+	return task, ok
+}
+
+// selectedInactiveTask returns the currently selected item in the inactive tasks list cast to *types.Task.
+func (m *Model) selectedInactiveTask() (*types.Task, bool) {
+	task, ok := m.inactiveTasksList.SelectedItem().(*types.Task)
+	return task, ok
+}
+
+// selectedTargetTask returns the currently selected item in the target tasks list cast to *types.Task.
+func (m *Model) selectedTargetTask() (*types.Task, bool) {
+	task, ok := m.targetTasksList.SelectedItem().(*types.Task)
+	return task, ok
+}
+
+// selectedTaskLogEntry returns the currently selected item in the task log list cast to types.TaskLogEntry.
+func (m *Model) selectedTaskLogEntry() (types.TaskLogEntry, bool) {
+	entry, ok := m.taskLogList.SelectedItem().(types.TaskLogEntry)
+	return entry, ok
 }
