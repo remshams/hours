@@ -109,7 +109,7 @@ This document captures sensible refactors identified after reviewing the current
 - ✅ Extract `reportSummaryBudget` helper, eliminating copy-pasted switch block between `getReport`/`getReportAgg`.
 - ✅ Unified `getReport` + `getReportAgg` into `renderReportGrid` pipeline with `reportGridEntry` interface and `perDayFetcher` injection.
 
-### PR 4: CLI Command Modularization
+### PR 4: CLI Command Modularization ✅ DONE
 
 - Split `NewRootCommand` into subcommand builder functions.
 - Introduce shared flag helpers and central pre-run behavior.
