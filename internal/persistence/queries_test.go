@@ -810,6 +810,271 @@ func TestRepository(t *testing.T) {
 	require.NoErrorf(t, err, "error closing DB: %v", err)
 }
 
+func TestExtendedRepository(t *testing.T) {
+	testDB, err := sql.Open("sqlite", ":memory:")
+	require.NoErrorf(t, err, "error opening DB: %v", err)
+
+	err = InitDB(testDB)
+	require.NoErrorf(t, err, "error initializing DB: %v", err)
+
+	err = UpgradeDB(testDB, 1)
+	require.NoErrorf(t, err, "error upgrading DB: %v", err)
+
+	t.Run("TestUpdateTask changes summary", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+		taskID := 1
+		newSummary := "updated task summary"
+
+		// WHEN
+		err := UpdateTask(testDB, taskID, newSummary)
+
+		// THEN
+		require.NoError(t, err, "failed to update task")
+
+		task, fetchErr := fetchTaskByID(testDB, taskID)
+		require.NoError(t, fetchErr, "failed to fetch task")
+
+		assert.Equal(t, newSummary, task.Summary)
+		assert.Equal(t, taskID, task.ID)
+	})
+
+	t.Run("TestFetchTasks returns active tasks", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		// WHEN
+		tasks, err := FetchTasks(testDB, true, 100)
+
+		// THEN
+		require.NoError(t, err, "failed to fetch active tasks")
+		require.Len(t, tasks, 2)
+		for _, task := range tasks {
+			assert.True(t, task.Active, "expected only active tasks")
+		}
+	})
+
+	t.Run("TestFetchTasks returns inactive tasks", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		err := UpdateTaskActiveStatus(testDB, 1, false)
+		require.NoError(t, err, "failed to deactivate task")
+
+		// WHEN
+		tasks, err := FetchTasks(testDB, false, 100)
+
+		// THEN
+		require.NoError(t, err, "failed to fetch inactive tasks")
+		require.Len(t, tasks, 1)
+		assert.Equal(t, 1, tasks[0].ID)
+		assert.False(t, tasks[0].Active)
+	})
+
+	t.Run("TestFetchTasks respects limit", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		// WHEN
+		tasks, err := FetchTasks(testDB, true, 1)
+
+		// THEN
+		require.NoError(t, err, "failed to fetch tasks with limit")
+		require.Len(t, tasks, 1)
+	})
+
+	t.Run("TestFetchTLEntries returns entries in descending order", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Date(2024, time.September, 1, 9, 0, 0, 0, time.Local)
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		// WHEN
+		entries, err := FetchTLEntries(testDB, true, 100)
+
+		// THEN
+		require.NoError(t, err, "failed to fetch task log entries")
+		require.Len(t, entries, 3)
+		// Descending: latest end_ts first
+		assert.True(t, entries[0].EndTS.After(entries[1].EndTS) || entries[0].EndTS.Equal(entries[1].EndTS))
+	})
+
+	t.Run("TestFetchTLEntries returns entries in ascending order", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Date(2024, time.September, 1, 9, 0, 0, 0, time.Local)
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		// WHEN
+		entries, err := FetchTLEntries(testDB, false, 100)
+
+		// THEN
+		require.NoError(t, err, "failed to fetch task log entries")
+		require.Len(t, entries, 3)
+		// Ascending: earliest end_ts first
+		assert.True(t, entries[0].EndTS.Before(entries[1].EndTS) || entries[0].EndTS.Equal(entries[1].EndTS))
+	})
+
+	t.Run("TestFetchTLEntries respects limit", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Date(2024, time.September, 1, 9, 0, 0, 0, time.Local)
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		// WHEN
+		entries, err := FetchTLEntries(testDB, true, 2)
+
+		// THEN
+		require.NoError(t, err, "failed to fetch task log entries with limit")
+		require.Len(t, entries, 2)
+	})
+
+	t.Run("TestDeleteActiveTL removes the open log entry", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+		taskID := 1
+		beginTS := time.Now().Add(-time.Hour)
+		_, insertErr := InsertNewTL(testDB, taskID, beginTS)
+		require.NoError(t, insertErr, "failed to insert active task log")
+
+		// verify the active TL exists before deletion
+		activeDetails, err := FetchActiveTaskDetails(testDB)
+		require.NoError(t, err, "failed to fetch active task details")
+		assert.Equal(t, taskID, activeDetails.TaskID)
+
+		// WHEN
+		err = DeleteActiveTL(testDB)
+
+		// THEN
+		require.NoError(t, err, "failed to delete active task log")
+
+		// verify no active TL remains
+		var count int
+		countErr := testDB.QueryRow("SELECT COUNT(*) FROM task_log WHERE active=true").Scan(&count)
+		require.NoError(t, countErr, "failed to count active task logs")
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("TestDeleteActiveTL succeeds when no active log exists", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN - no active TL
+
+		// WHEN
+		err := DeleteActiveTL(testDB)
+
+		// THEN
+		require.NoError(t, err, "should not error when no active TL exists")
+	})
+
+	t.Run("TestMoveTaskLog moves entry and updates secs_spent", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		tlID := 1 // belongs to task 1, secsSpent=2h
+		oldTaskID := 1
+		newTaskID := 2
+		secsToMove := 2 * secsInOneHour
+
+		taskOneBefore, err := fetchTaskByID(testDB, oldTaskID)
+		require.NoError(t, err, "failed to fetch old task")
+		taskTwoBefore, err := fetchTaskByID(testDB, newTaskID)
+		require.NoError(t, err, "failed to fetch new task")
+
+		// WHEN
+		err = MoveTaskLog(testDB, tlID, oldTaskID, newTaskID, secsToMove)
+
+		// THEN
+		require.NoError(t, err, "failed to move task log")
+
+		// verify task_log entry now belongs to newTaskID
+		tl, fetchErr := fetchTLByID(testDB, tlID)
+		require.NoError(t, fetchErr, "failed to fetch moved task log")
+		assert.Equal(t, newTaskID, tl.TaskID)
+
+		// verify secs_spent transferred between tasks
+		taskOneAfter, err := fetchTaskByID(testDB, oldTaskID)
+		require.NoError(t, err, "failed to fetch old task after move")
+		taskTwoAfter, err := fetchTaskByID(testDB, newTaskID)
+		require.NoError(t, err, "failed to fetch new task after move")
+
+		assert.Equal(t, taskOneBefore.SecsSpent-secsToMove, taskOneAfter.SecsSpent)
+		assert.Equal(t, taskTwoBefore.SecsSpent+secsToMove, taskTwoAfter.SecsSpent)
+	})
+
+	t.Run("TestMoveTaskLog same task is a no-op", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+		taskID := 1
+
+		taskBefore, err := fetchTaskByID(testDB, taskID)
+		require.NoError(t, err, "failed to fetch task")
+
+		// WHEN
+		err = MoveTaskLog(testDB, 1, taskID, taskID, secsInOneHour)
+
+		// THEN
+		require.NoError(t, err, "same-task move should not error")
+
+		taskAfter, err := fetchTaskByID(testDB, taskID)
+		require.NoError(t, err, "failed to fetch task after no-op move")
+
+		assert.Equal(t, taskBefore.SecsSpent, taskAfter.SecsSpent)
+	})
+
+	t.Run("TestMoveTaskLog returns error when task log not found", func(t *testing.T) {
+		t.Cleanup(func() { cleanupDB(t, testDB) })
+
+		// GIVEN
+		referenceTS := time.Now()
+		seedData := getTestData(referenceTS)
+		seedDB(t, testDB, seedData)
+
+		// WHEN - use a non-existent TL ID
+		err := MoveTaskLog(testDB, 9999, 1, 2, secsInOneHour)
+
+		// THEN
+		require.ErrorIs(t, err, ErrTaskLogNotFound)
+	})
+
+	err = testDB.Close()
+	require.NoErrorf(t, err, "error closing extended repository DB: %v", err)
+}
+
 func TestArchiveStaleTasks(t *testing.T) {
 	testDB, err := sql.Open("sqlite", ":memory:")
 	require.NoErrorf(t, err, "error opening DB: %v", err)
