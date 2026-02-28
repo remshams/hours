@@ -210,10 +210,19 @@ func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cm
 	return false, nil
 }
 
-// updateInputComponents propagates a message to the active form's input widgets
-// and signals the caller to return early.  Returns handled=true only when a
-// form view is active.
+// updateInputComponents propagates an input event to the active form's input
+// widgets and signals the caller to return early.  Returns handled=true only
+// when a form view is active AND msg is an input event (tea.KeyMsg or
+// tea.MouseMsg); for all other message types it returns handled=false so that
+// async messages (e.g. taskCreatedMsg) are not silently dropped and can reach
+// handleMsg.
 func (m *Model) updateInputComponents(msg tea.Msg) (cmds []tea.Cmd, handled bool) {
+	switch msg.(type) {
+	case tea.KeyMsg, tea.MouseMsg:
+	default:
+		return nil, false
+	}
+
 	var cmd tea.Cmd
 	switch m.activeView {
 	case taskInputView:
