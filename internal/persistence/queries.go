@@ -434,8 +434,6 @@ WHERE id=?;
 }
 
 func FetchTasks(db *sql.DB, active bool, limit int) ([]types.Task, error) {
-	var tasks []types.Task
-
 	rows, err := db.Query(`
 SELECT id, summary, secs_spent, created_at, updated_at, active
 FROM task
@@ -448,32 +446,10 @@ LIMIT ?;
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var entry types.Task
-		err = rows.Scan(&entry.ID,
-			&entry.Summary,
-			&entry.SecsSpent,
-			&entry.CreatedAt,
-			&entry.UpdatedAt,
-			&entry.Active,
-		)
-		if err != nil {
-			return nil, err
-		}
-		entry.CreatedAt = entry.CreatedAt.Local()
-		entry.UpdatedAt = entry.UpdatedAt.Local()
-		tasks = append(tasks, entry)
-
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	return tasks, nil
+	return collectTasks(rows)
 }
 
 func FetchTLEntries(db *sql.DB, desc bool, limit int) ([]types.TaskLogEntry, error) {
-	var logEntries []types.TaskLogEntry
-
 	var order string
 	if desc {
 		order = "DESC"
@@ -494,28 +470,7 @@ LIMIT ?;
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var entry types.TaskLogEntry
-		err = rows.Scan(&entry.ID,
-			&entry.TaskID,
-			&entry.TaskSummary,
-			&entry.BeginTS,
-			&entry.EndTS,
-			&entry.SecsSpent,
-			&entry.Comment,
-		)
-		if err != nil {
-			return nil, err
-		}
-		entry.BeginTS = entry.BeginTS.Local()
-		entry.EndTS = entry.EndTS.Local()
-		logEntries = append(logEntries, entry)
-
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	return logEntries, nil
+	return collectTaskLogEntries(rows)
 }
 
 func FetchTLEntriesBetweenTS(db *sql.DB, beginTs, endTs time.Time, taskStatus types.TaskStatus, limit int) ([]types.TaskLogEntry, error) {
@@ -526,8 +481,6 @@ func FetchTLEntriesBetweenTS(db *sql.DB, beginTs, endTs time.Time, taskStatus ty
 	case types.TaskStatusInactive:
 		tsFilter = "AND t.active is false"
 	}
-
-	var logEntries []types.TaskLogEntry
 
 	rows, err := db.Query(`
 SELECT tl.id, tl.task_id, t.summary, tl.begin_ts, tl.end_ts, tl.secs_spent, tl.comment
@@ -543,28 +496,7 @@ ORDER by tl.begin_ts ASC LIMIT ?;
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var entry types.TaskLogEntry
-		err = rows.Scan(&entry.ID,
-			&entry.TaskID,
-			&entry.TaskSummary,
-			&entry.BeginTS,
-			&entry.EndTS,
-			&entry.SecsSpent,
-			&entry.Comment,
-		)
-		if err != nil {
-			return nil, err
-		}
-		entry.BeginTS = entry.BeginTS.Local()
-		entry.EndTS = entry.EndTS.Local()
-		logEntries = append(logEntries, entry)
-
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	return logEntries, nil
+	return collectTaskLogEntries(rows)
 }
 
 func FetchStats(db *sql.DB, taskStatus types.TaskStatus, limit int) ([]types.TaskReportEntry, error) {
@@ -590,26 +522,7 @@ limit ?;
 	}
 	defer rows.Close()
 
-	var tLE []types.TaskReportEntry
-
-	for rows.Next() {
-		var entry types.TaskReportEntry
-		err = rows.Scan(
-			&entry.TaskID,
-			&entry.TaskSummary,
-			&entry.NumEntries,
-			&entry.SecsSpent,
-		)
-		if err != nil {
-			return nil, err
-		}
-		tLE = append(tLE, entry)
-
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	return tLE, nil
+	return collectTaskReportEntries(rows)
 }
 
 func FetchStatsBetweenTS(db *sql.DB, beginTs, endTs time.Time, taskStatus types.TaskStatus, limit int) ([]types.TaskReportEntry, error) {
@@ -635,26 +548,7 @@ LIMIT ?;
 	}
 	defer rows.Close()
 
-	var tLE []types.TaskReportEntry
-
-	for rows.Next() {
-		var entry types.TaskReportEntry
-		err = rows.Scan(
-			&entry.TaskID,
-			&entry.TaskSummary,
-			&entry.NumEntries,
-			&entry.SecsSpent,
-		)
-		if err != nil {
-			return nil, err
-		}
-		tLE = append(tLE, entry)
-
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	return tLE, nil
+	return collectTaskReportEntries(rows)
 }
 
 func FetchReportBetweenTS(db *sql.DB, beginTs, endTs time.Time, taskStatus types.TaskStatus, limit int) ([]types.TaskReportEntry, error) {
@@ -681,26 +575,7 @@ LIMIT ?;
 	}
 	defer rows.Close()
 
-	var tLE []types.TaskReportEntry
-
-	for rows.Next() {
-		var entry types.TaskReportEntry
-		err = rows.Scan(
-			&entry.TaskID,
-			&entry.TaskSummary,
-			&entry.NumEntries,
-			&entry.SecsSpent,
-		)
-		if err != nil {
-			return nil, err
-		}
-		tLE = append(tLE, entry)
-
-	}
-	if rows.Err() != nil {
-		return nil, err
-	}
-	return tLE, nil
+	return collectTaskReportEntries(rows)
 }
 
 func DeleteTL(db *sql.DB, entry *types.TaskLogEntry) error {
