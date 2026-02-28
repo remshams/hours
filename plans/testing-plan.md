@@ -35,6 +35,9 @@ Increase confidence in `hours` in small, reviewable increments: first improve un
 - `T-061` stability controls
 - `T-070` testing guide docs
 - `T-071` optional coverage trend/gate
+- `T-080` persistence: UpdateTask, FetchTasks, FetchTLEntries, DeleteActiveTL, MoveTaskLog
+- `T-081` types: ParseTaskStatus
+- `T-082` UI handle.go async message handlers
 
 ## Baseline Coverage (T-001)
 
@@ -227,3 +230,6 @@ Done criteria:
 | T-061 | stability controls | scheduled | PR-10 | Scheduled follow-up: keep timeout/diagnostic controls tight for PTY and deterministic layers |
 | T-070 | testing guide docs | todo | PR-11 | |
 | T-071 | optional coverage trend/gate | todo | PR-11 | optional |
+| T-080 | persistence: UpdateTask, FetchTasks, FetchTLEntries, DeleteActiveTL, MoveTaskLog | **done** | PR-12 | Added TestExtendedRepository with 12 sub-tests in queries_test.go |
+| T-081 | types: ParseTaskStatus | **done** | PR-12 | Added TestParseTaskStatus with 5 sub-tests in types_test.go |
+| T-082 | UI handle.go async message handlers | **done** | PR-12 | Added 9 test functions covering all high-value async message handlers in handle_test.go |

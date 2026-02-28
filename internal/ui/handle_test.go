@@ -90,7 +90,7 @@ func TestHandleCopyTaskSummary(t *testing.T) {
 	}
 }
 
-// T-080: handle.go async message handler tests
+// T-082: handle.go async message handler tests
 
 func TestHandleTasksFetchedMsg(t *testing.T) {
 	t.Run("error sets error message", func(t *testing.T) {
