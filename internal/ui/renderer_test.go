@@ -154,7 +154,7 @@ func TestRenderTaskLogNonInteractiveMultiDayAllowed(t *testing.T) {
 	assert.Contains(t, buf.String(), "Day 1 work")
 }
 
-// T-031: Test RenderReport / getReport / getReportAgg
+// T-031: Test RenderReport / renderReportGrid
 
 func TestGetReportNoEntries(t *testing.T) {
 	// GIVEN
@@ -164,7 +164,7 @@ func TestGetReportNoEntries(t *testing.T) {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// WHEN
-	result, err := getReport(db, style, start, 1, types.TaskStatusAny, true)
+	result, err := renderReportGrid(db, style, start, 1, types.TaskStatusAny, true, fetchTLEntriesForDay)
 
 	// THEN
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestGetReportMultiDayEntries(t *testing.T) {
 	queryStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// WHEN
-	result, err := getReport(db, style, queryStart, 2, types.TaskStatusAny, true)
+	result, err := renderReportGrid(db, style, queryStart, 2, types.TaskStatusAny, true, fetchTLEntriesForDay)
 
 	// THEN - report shows task summaries and time spent (not comments)
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestGetReportAggEntries(t *testing.T) {
 	queryStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// WHEN
-	result, err := getReportAgg(db, style, queryStart, 1, types.TaskStatusAny, true)
+	result, err := renderReportGrid(db, style, queryStart, 1, types.TaskStatusAny, true, fetchReportEntriesForDay)
 
 	// THEN - aggregate report should combine entries
 	require.NoError(t, err)
