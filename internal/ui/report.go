@@ -20,6 +20,22 @@ const (
 	reportTimeCharsBudget = 6
 )
 
+// reportSummaryBudget returns the character width budget for task summary cells
+// in a report grid based on the number of days being displayed. Narrower budgets
+// are used for wider grids (more days) so the table fits in a typical terminal.
+func reportSummaryBudget(numDays int) int {
+	switch numDays {
+	case 7:
+		return 8
+	case 6:
+		return 10
+	case 5:
+		return 14
+	default:
+		return 16
+	}
+}
+
 func RenderReport(db *sql.DB,
 	style Style,
 	writer io.Writer,
@@ -105,18 +121,7 @@ func getReport(db *sql.DB, style Style, start time.Time, numDays int, taskStatus
 	}
 
 	rs := style.getReportStyles(plain)
-
-	var summaryBudget int
-	switch numDays {
-	case 7:
-		summaryBudget = 8
-	case 6:
-		summaryBudget = 10
-	case 5:
-		summaryBudget = 14
-	default:
-		summaryBudget = 16
-	}
+	summaryBudget := reportSummaryBudget(numDays)
 
 	styleCache := make(map[string]lipgloss.Style)
 	for rowIndex := range maxEntryForADay {
@@ -229,18 +234,7 @@ func getReportAgg(db *sql.DB,
 	}
 
 	rs := style.getReportStyles(plain)
-
-	var summaryBudget int
-	switch numDays {
-	case 7:
-		summaryBudget = 8
-	case 6:
-		summaryBudget = 10
-	case 5:
-		summaryBudget = 14
-	default:
-		summaryBudget = 16
-	}
+	summaryBudget := reportSummaryBudget(numDays)
 
 	styleCache := make(map[string]lipgloss.Style)
 	for rowIndex := range maxEntryForADay {
