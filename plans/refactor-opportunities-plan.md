@@ -20,7 +20,7 @@ This document captures sensible refactors identified after reviewing the current
      - `handleMsg` (typed message handlers)
    - Expected benefit: easier reasoning about keybindings and lower regression risk when adding new views.
 
-2. **Unify report rendering paths in `internal/ui/report.go`**
+2. **Unify report rendering paths in `internal/ui/report.go`** ✅ **DONE (PR3)**
    - `getReport` and `getReportAgg` are structurally very similar.
    - Proposed approach:
      - Introduce one shared report grid renderer.
@@ -28,7 +28,7 @@ This document captures sensible refactors identified after reviewing the current
    - Additional: the `summaryBudget` switch block is copy-pasted verbatim; extract it first.
    - Expected benefit: less duplication and fewer inconsistencies over time.
 
-3. **Extract shared table factory used by report/log/stats**
+3. **Extract shared table factory used by report/log/stats** ✅ **DONE (PR3)**
    - Table writer configuration is repeated in:
      - `internal/ui/report.go`
      - `internal/ui/log.go`
@@ -96,19 +96,18 @@ This document captures sensible refactors identified after reviewing the current
   - `cmd/`: `root_test.go`, `errors_test.go`, `themes_test.go`, `utils_test.go`
   - `tests/cli/`: integration-level CLI tests
 
-### PR 2: Quick Wins (Low Risk) 🚧 IN PROGRESS
+### PR 2: Quick Wins (Low Risk) ✅ DONE
 
 - ✅ Extract `commentPtrFromInput` helper.
 - ✅ Extract list guard/cast helpers (`selectedActiveTask`, `selectedInactiveTask`, `selectedTaskLogEntry`).
 - ✅ Extract list initialization helper `setupList` in `initial.go`.
 - No functional changes expected.
 
-### PR 3: Rendering Unification
+### PR 3: Rendering Unification ✅ DONE
 
-- Add shared table factory for report/log/stats.
-- Extract `summaryBudget` switch block shared between `getReport`/`getReportAgg`.
-- Refactor `getReport` + `getReportAgg` to one shared renderer pipeline.
-- Keep snapshot tests updated only if formatting changes are intentional.
+- ✅ Add shared table factory for report/log/stats (`newRecordsTable`/`renderRecordsTable` in `internal/ui/table.go`).
+- ✅ Extract `reportSummaryBudget` helper, eliminating copy-pasted switch block between `getReport`/`getReportAgg`.
+- ✅ Unified `getReport` + `getReportAgg` into `renderReportGrid` pipeline with `reportGridEntry` interface and `perDayFetcher` injection.
 
 ### PR 4: CLI Command Modularization
 
