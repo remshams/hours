@@ -194,9 +194,9 @@ func getRecordsData(
 
 		switch analyticsType {
 		case reportRecords:
-			data, err = getReport(db, style, dateRange.Start, dateRange.NumDays, taskStatus, plain)
+			data, err = renderReportGrid(db, style, dateRange.Start, dateRange.NumDays, taskStatus, plain, fetchTLEntriesForDay)
 		case reportAggRecords:
-			data, err = getReportAgg(db, style, dateRange.Start, dateRange.NumDays, taskStatus, plain)
+			data, err = renderReportGrid(db, style, dateRange.Start, dateRange.NumDays, taskStatus, plain, fetchReportEntriesForDay)
 		case reportLogs:
 			data, err = getTaskLog(db, style, dateRange.Start, dateRange.End, taskStatus, 20, plain)
 		case reportStats:
