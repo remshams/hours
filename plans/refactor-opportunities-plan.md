@@ -116,11 +116,16 @@ This document captures sensible refactors identified after reviewing the current
 - Extract duplicated `HOURS_THEME` env-var lookup.
 - Preserve existing command UX/flags exactly.
 
-### PR 5: Persistence Simplification
+### PR 5: Persistence Simplification ✅ DONE
 
-- Introduce reusable row scan helpers for task/tasklog/report rows.
+- ✅ Introduced reusable row scan helpers in `internal/persistence/scan.go`:
+  - `scanTask`, `scanTaskLogEntry`, `scanTaskReportEntry` (single-row helpers)
+  - `collectTasks`, `collectTaskLogEntries`, `collectTaskReportEntries` (iteration helpers)
+- ✅ Refactored `FetchTasks`, `FetchTLEntries`, `FetchTLEntriesBetweenTS`, `FetchStats`, `FetchStatsBetweenTS`, `FetchReportBetweenTS` to use the helpers.
+- ✅ Fixed latent `rows.Err()` bug present in all six functions (was returning `err` instead of `rows.Err()`).
+- ✅ Added 10 unit tests for the extracted helpers in `internal/persistence/scan_test.go`.
 - Transaction helpers already consolidated (done).
-- Keep SQL semantics unchanged.
+- SQL semantics unchanged.
 
 ### PR 6: UI Update Decomposition (Highest Risk)
 
