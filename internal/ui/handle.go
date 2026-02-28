@@ -9,11 +9,21 @@ import (
 
 	"github.com/aymanbagabas/go-osc52/v2"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	c "github.com/dhth/hours/internal/common"
 	"github.com/dhth/hours/internal/types"
 )
+
+// commentPtrFromInput returns a pointer to the trimmed textarea value, or nil if it is empty.
+func commentPtrFromInput(input textarea.Model) *string {
+	v := strings.TrimSpace(input.Value())
+	if v == "" {
+		return nil
+	}
+	return &v
+}
 
 const (
 	genericErrorMsg               = "Something went wrong"
@@ -60,11 +70,7 @@ func (m *Model) getCmdToUpdateActiveTL() tea.Cmd {
 		return nil
 	}
 
-	commentValue := strings.TrimSpace(m.tLCommentInput.Value())
-	var comment *string
-	if commentValue != "" {
-		comment = &commentValue
-	}
+	comment := commentPtrFromInput(m.tLCommentInput)
 
 	m.activeView = taskListView
 	return updateActiveTL(m.db, beginTS, comment)
@@ -79,11 +85,7 @@ func (m *Model) getCmdToFinishTrackingActiveTL() tea.Cmd {
 	m.activeTLBeginTS = beginTS
 	m.activeTLEndTS = endTS
 
-	commentValue := strings.TrimSpace(m.tLCommentInput.Value())
-	var comment *string
-	if commentValue != "" {
-		comment = &commentValue
-	}
+	comment := commentPtrFromInput(m.tLCommentInput)
 
 	m.activeView = taskListView
 
@@ -115,11 +117,7 @@ func (m *Model) getCmdToCreateOrEditTL() tea.Cmd {
 		return nil
 	}
 
-	commentValue := strings.TrimSpace(m.tLCommentInput.Value())
-	var comment *string
-	if commentValue != "" {
-		comment = &commentValue
-	}
+	comment := commentPtrFromInput(m.tLCommentInput)
 
 	m.blurTLTrackingInputs()
 	m.tLCommentInput.SetValue("")

@@ -25,6 +25,7 @@ This document captures sensible refactors identified after reviewing the current
    - Proposed approach:
      - Introduce one shared report grid renderer.
      - Inject data fetch function and row adapter for non-aggregated vs aggregated rows.
+   - Additional: the `summaryBudget` switch block is copy-pasted verbatim; extract it first.
    - Expected benefit: less duplication and fewer inconsistencies over time.
 
 3. **Extract shared table factory used by report/log/stats**
@@ -41,6 +42,7 @@ This document captures sensible refactors identified after reviewing the current
    - Proposed split:
      - `newGenerateCmd`, `newReportCmd`, `newLogCmd`, `newStatsCmd`, `newActiveCmd`, `newThemesCmd`
      - shared pre-run helper and shared flag registration helpers.
+   - Note: `HOURS_THEME` env-var lookup is duplicated in `preRun` and `showThemeConfigCmd.RunE`; extract to `cmd/utils.go`.
    - Expected benefit: much clearer command boundaries and easier extension.
 
 5. **Remove repeated flag registration logic in `cmd/root.go`**
@@ -52,10 +54,11 @@ This document captures sensible refactors identified after reviewing the current
    - Expected benefit: fewer copy/paste mistakes and easier updates.
 
 6. **Consolidate task-log form workflows in `internal/ui/handle.go` + `internal/ui/view.go`**
-   - Repeated comment extraction (`textarea -> *string`) and repeated focus/setup logic.
+   - Repeated focus/setup logic in `handleRequestToEditActiveTL`, `handleRequestToCreateManualTL`, `handleRequestToEditSavedTL`, `handleRequestToStopTracking`.
    - Proposed helpers:
-     - `commentPtrFromInput(textarea.Model) *string`
+     - `commentPtrFromInput(textarea.Model) *string` — ✅ **DONE (PR2)**
      - setup/focus helpers for `editActiveTL`, `finishActiveTL`, `manualTasklogEntry`, `editSavedTL`.
+   - Also: `finishActiveTLView` and `manualTasklogEntryView`/`editSavedTLView` in `view.go` render nearly identical form layouts; extract a parameterized form renderer.
    - Expected benefit: less branching and lower cognitive load.
 
 7. **Refactor repeated list guard/cast patterns in UI handlers**
@@ -63,46 +66,47 @@ This document captures sensible refactors identified after reviewing the current
      - filtered list checks
      - selected item casting
      - generic error message setting
-   - Proposed helpers for safe selection per list type.
+   - Proposed helpers for safe selection per list type. ✅ **DONE (PR2)**
    - Expected benefit: less boilerplate and more consistent errors.
 
 8. **Make theme color validation data-driven in `internal/ui/theme/theme.go`**
-   - `getInvalidColors` is a long chain of manual checks.
+   - `getInvalidColors` is a long chain of manual checks (94 lines, 28+ individual blocks).
    - Proposed approach:
      - map-like list of `{name, value}` and loop.
    - Expected benefit: easier to maintain and harder to forget fields.
 
 9. **Reduce duplication in persistence query scanning and tx wrappers**
-   - Repeated scan loops and very similar transaction wrappers in `internal/persistence/queries.go`.
-   - Proposed approach:
-     - shared row scan helpers for task/tasklog/report rows.
-     - one generic transaction helper replacing `runInTxAndReturnID`, `runInTx`, `runInTxAndReturnA`.
+   - Transaction wrappers: ✅ **DONE** — `runInTx`, `runInTxAndReturnID`, `runInTxAndReturnA[A any]` all exist.
+   - Repeated scan loops still exist: `rows.Next()` + `rows.Scan()` + `.Local()` + `append` pattern repeated in `FetchTasks`, `FetchTLEntries`, `FetchTLEntriesBetweenTS`, `FetchStats`, `FetchStatsBetweenTS`, `FetchReportBetweenTS`.
+   - Proposed: shared row scan helpers for task/tasklog/report rows.
    - Expected benefit: fewer subtle error-handling differences.
 
-10. **Consolidate list model setup in `internal/ui/initial.go`**
+10. **Consolidate list model setup in `internal/ui/initial.go`** ✅ **DONE (PR2)**
     - Active/inactive/tasklog/target list setup repeats title/help/keymap/style wiring.
     - Proposed helper builder to initialize list models with shared defaults and small overrides.
     - Expected benefit: cleaner initialization path.
 
 ## Suggested Execution Plan (PR-Sized)
 
-### PR 1: Safety Net
+### PR 1: Safety Net ✅ DONE
 
-- Add characterization tests around high-risk behavior:
-  - key navigation + submit behavior in UI forms.
-  - persistence accounting around deleting/editing/moving logs.
-- Goal: preserve behavior while refactoring internals.
+- Extensive unit test coverage now exists across all major packages:
+  - `internal/ui/`: `handle_test.go`, `journey_test.go`, `update_test.go`, `renderer_test.go`, `task_tracking_test.go`, `view_test.go`, `styles_test.go`
+  - `internal/persistence/`: `queries_test.go`, `migrations_test.go`
+  - `cmd/`: `root_test.go`, `errors_test.go`, `themes_test.go`, `utils_test.go`
+  - `tests/cli/`: integration-level CLI tests
 
-### PR 2: Quick Wins (Low Risk)
+### PR 2: Quick Wins (Low Risk) 🚧 IN PROGRESS
 
-- Extract comment parsing helper.
-- Extract list guard/cast helpers.
-- Extract list initialization helper in `initial.go`.
+- ✅ Extract `commentPtrFromInput` helper.
+- ✅ Extract list guard/cast helpers (`selectedActiveTask`, `selectedInactiveTask`, `selectedTaskLogEntry`).
+- ✅ Extract list initialization helper `setupList` in `initial.go`.
 - No functional changes expected.
 
 ### PR 3: Rendering Unification
 
 - Add shared table factory for report/log/stats.
+- Extract `summaryBudget` switch block shared between `getReport`/`getReportAgg`.
 - Refactor `getReport` + `getReportAgg` to one shared renderer pipeline.
 - Keep snapshot tests updated only if formatting changes are intentional.
 
@@ -110,12 +114,13 @@ This document captures sensible refactors identified after reviewing the current
 
 - Split `NewRootCommand` into subcommand builder functions.
 - Introduce shared flag helpers and central pre-run behavior.
+- Extract duplicated `HOURS_THEME` env-var lookup.
 - Preserve existing command UX/flags exactly.
 
 ### PR 5: Persistence Simplification
 
-- Introduce reusable scan helpers.
-- Consolidate transaction helpers.
+- Introduce reusable row scan helpers for task/tasklog/report rows.
+- Transaction helpers already consolidated (done).
 - Keep SQL semantics unchanged.
 
 ### PR 6: UI Update Decomposition (Highest Risk)
