@@ -19,7 +19,6 @@ const (
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.frameCounter++
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	// early check for window resizing and handling insufficient dimensions
@@ -51,128 +50,178 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	keyMsg, keyMsgOK := msg.(tea.KeyMsg)
-	if keyMsgOK {
-		if m.activeTasksList.FilterState() == list.Filtering {
-			m.activeTasksList, cmd = m.activeTasksList.Update(msg)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
-		}
-		if m.targetTasksList.FilterState() == list.Filtering {
-			m.targetTasksList, cmd = m.targetTasksList.Update(msg)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		// Delegate filter key handling to the appropriate list when filtering.
+		if exitEarly, exitCmds := m.handleFilteringKeys(keyMsg); exitEarly {
+			return m, tea.Batch(exitCmds...)
 		}
 
-		switch keyMsg.String() {
-		case enter, "ctrl+s":
-			var bail bool
-			if keyMsg.String() == enter {
-				switch m.activeView {
-				case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-					if m.trackingFocussedField == entryComment {
-						bail = true
-					}
-				}
-			}
-
-			if bail {
-				break
-			}
-
-			var updateCmd tea.Cmd
-			switch m.activeView {
-			case taskInputView:
-				updateCmd = m.getCmdToCreateOrUpdateTask()
-			case editActiveTLView:
-				updateCmd = m.getCmdToUpdateActiveTL()
-			case finishActiveTLView:
-				updateCmd = m.getCmdToFinishTrackingActiveTL()
-			case manualTasklogEntryView, editSavedTLView:
-				updateCmd = m.getCmdToCreateOrEditTL()
-			case moveTaskLogView:
-				if keyMsg.String() == enter {
-					updateCmd = m.handleTargetTaskSelection()
-				}
-			}
-			if updateCmd != nil {
-				cmds = append(cmds, updateCmd)
-				return m, tea.Batch(cmds...)
-			}
-		case escape:
-			switch m.activeView {
-			case taskInputView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
-				m.handleEscapeInForms()
-				return m, tea.Batch(cmds...)
-			}
-		case "tab":
-			m.goForwardInView()
-		case "shift+tab":
-			m.goBackwardInView()
-		case "k":
-			switch m.activeView {
-			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-				err := m.shiftTime(types.ShiftBackward, types.ShiftMinute)
-				if err != nil {
-					return m, tea.Batch(cmds...)
-				}
-			}
-		case "j":
-			switch m.activeView {
-			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-				err := m.shiftTime(types.ShiftForward, types.ShiftMinute)
-				if err != nil {
-					return m, tea.Batch(cmds...)
-				}
-			}
-		case "K":
-			switch m.activeView {
-			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-				err := m.shiftTime(types.ShiftBackward, types.ShiftFiveMinutes)
-				if err != nil {
-					return m, tea.Batch(cmds...)
-				}
-			}
-		case "J":
-			switch m.activeView {
-			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-				err := m.shiftTime(types.ShiftForward, types.ShiftFiveMinutes)
-				if err != nil {
-					return m, tea.Batch(cmds...)
-				}
-			}
-		case "h":
-			switch m.activeView {
-			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-				err := m.shiftTime(types.ShiftBackward, types.ShiftDay)
-				if err != nil {
-					return m, tea.Batch(cmds...)
-				}
-			case taskLogDetailsView:
-				m.taskLogList.CursorUp()
-				m.handleRequestToViewTLDetails()
-			}
-		case "l":
-			switch m.activeView {
-			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
-				err := m.shiftTime(types.ShiftForward, types.ShiftDay)
-				if err != nil {
-					return m, tea.Batch(cmds...)
-				}
-			case taskLogDetailsView:
-				m.taskLogList.CursorDown()
-				m.handleRequestToViewTLDetails()
-			}
+		// Keys that only make sense inside forms (submit, escape, tab, time-shifts).
+		if exitEarly, exitCmds := m.handleFormKeys(keyMsg); exitEarly {
+			return m, tea.Batch(exitCmds...)
 		}
 	}
 
+	// Propagate msg to active input components (forms and lists).
+	if inputCmds, handled := m.updateInputComponents(msg); handled {
+		return m, tea.Batch(inputCmds...)
+	}
+
+	// Handle typed messages and list-level key actions.
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		listCmds := m.handleListKeys(msg)
+		cmds = append(cmds, listCmds...)
+	default:
+		msgCmds := m.handleMsg(msg)
+		cmds = append(cmds, msgCmds...)
+	}
+
+	// Propagate msg to the currently focused list or viewport.
+	viewCmds := m.updateActiveView(msg)
+	cmds = append(cmds, viewCmds...)
+
+	return m, tea.Batch(cmds...)
+}
+
+// handleFilteringKeys routes key events to whichever list is currently in
+// filter mode and signals the caller to return early.
+func (m *Model) handleFilteringKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cmd) {
+	var cmd tea.Cmd
+	if m.activeTasksList.FilterState() == list.Filtering {
+		m.activeTasksList, cmd = m.activeTasksList.Update(keyMsg)
+		return true, []tea.Cmd{cmd}
+	}
+	if m.targetTasksList.FilterState() == list.Filtering {
+		m.targetTasksList, cmd = m.targetTasksList.Update(keyMsg)
+		return true, []tea.Cmd{cmd}
+	}
+	return false, nil
+}
+
+// handleFormKeys handles key events that are only meaningful while a form view
+// is active: enter/ctrl+s (submit), esc (cancel), tab/shift+tab (field
+// navigation), and j/k/J/K/h/l (time-shifting).  Returns exitEarly=true when
+// the caller should return immediately after processing.
+func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cmd) {
+	switch keyMsg.String() {
+	case enter, "ctrl+s":
+		var bail bool
+		if keyMsg.String() == enter {
+			switch m.activeView {
+			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+				if m.trackingFocussedField == entryComment {
+					bail = true
+				}
+			}
+		}
+
+		if bail {
+			return false, nil
+		}
+
+		var updateCmd tea.Cmd
+		switch m.activeView {
+		case taskInputView:
+			updateCmd = m.getCmdToCreateOrUpdateTask()
+		case editActiveTLView:
+			updateCmd = m.getCmdToUpdateActiveTL()
+		case finishActiveTLView:
+			updateCmd = m.getCmdToFinishTrackingActiveTL()
+		case manualTasklogEntryView, editSavedTLView:
+			updateCmd = m.getCmdToCreateOrEditTL()
+		case moveTaskLogView:
+			if keyMsg.String() == enter {
+				updateCmd = m.handleTargetTaskSelection()
+			}
+		}
+		if updateCmd != nil {
+			return true, []tea.Cmd{updateCmd}
+		}
+
+	case escape:
+		switch m.activeView {
+		case taskInputView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
+			m.handleEscapeInForms()
+			return true, nil
+		}
+
+	case "tab":
+		m.goForwardInView()
+
+	case "shift+tab":
+		m.goBackwardInView()
+
+	case "k":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftBackward, types.ShiftMinute); err != nil {
+				return true, nil
+			}
+		}
+
+	case "j":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftForward, types.ShiftMinute); err != nil {
+				return true, nil
+			}
+		}
+
+	case "K":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftBackward, types.ShiftFiveMinutes); err != nil {
+				return true, nil
+			}
+		}
+
+	case "J":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftForward, types.ShiftFiveMinutes); err != nil {
+				return true, nil
+			}
+		}
+
+	case "h":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftBackward, types.ShiftDay); err != nil {
+				return true, nil
+			}
+		case taskLogDetailsView:
+			m.taskLogList.CursorUp()
+			m.handleRequestToViewTLDetails()
+		}
+
+	case "l":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftForward, types.ShiftDay); err != nil {
+				return true, nil
+			}
+		case taskLogDetailsView:
+			m.taskLogList.CursorDown()
+			m.handleRequestToViewTLDetails()
+		}
+	}
+
+	return false, nil
+}
+
+// updateInputComponents propagates a message to the active form's input widgets
+// and signals the caller to return early.  Returns handled=true only when a
+// form view is active.
+func (m *Model) updateInputComponents(msg tea.Msg) (cmds []tea.Cmd, handled bool) {
+	var cmd tea.Cmd
 	switch m.activeView {
 	case taskInputView:
 		for i := range m.taskInputs {
 			m.taskInputs[i], cmd = m.taskInputs[i].Update(msg)
 			cmds = append(cmds, cmd)
 		}
-		return m, tea.Batch(cmds...)
+		return cmds, true
 	case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
 		for i := range m.tLInputs {
 			m.tLInputs[i], cmd = m.tLInputs[i].Update(msg)
@@ -180,136 +229,143 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.tLCommentInput, cmd = m.tLCommentInput.Update(msg)
 		cmds = append(cmds, cmd)
-		return m, tea.Batch(cmds...)
+		return cmds, true
 	}
+	return nil, false
+}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", escape:
-			shouldQuit := m.handleRequestToGoBackOrQuit()
-			if shouldQuit {
-				return m, tea.Quit
-			}
-		case "1":
-			if m.activeView != taskListView {
-				m.activeView = taskListView
-			}
-		case "2":
-			if m.activeView != taskLogView {
-				m.activeView = taskLogView
-			}
-		case "3":
-			if m.activeView != inactiveTaskListView {
-				m.activeView = inactiveTaskListView
-			}
-		case "ctrl+r":
-			reloadCmd := m.getCmdToReloadData()
-			if reloadCmd != nil {
-				cmds = append(cmds, reloadCmd)
-			}
-		case "ctrl+t":
-			m.goToActiveTask()
-		case "f":
-			if m.activeView != taskListView {
-				break
-			}
-
-			if !m.trackingActive {
-				m.message = errMsg("Nothing is being tracked right now")
-				break
-			}
-
-			handleCmd := m.getCmdToFinishActiveTL()
-			if handleCmd != nil {
-				cmds = append(cmds, handleCmd)
-			}
-		case "ctrl+s":
-			switch m.activeView {
-			case taskListView:
-				switch m.trackingActive {
-				case true:
-					m.handleRequestToEditActiveTL()
-				case false:
-					m.handleRequestToCreateManualTL()
-				}
-			case taskLogView:
-				m.handleRequestToEditSavedTL()
-			}
-		case "u":
-			switch m.activeView {
-			case taskListView:
-				m.handleRequestToUpdateTask()
-			case taskLogView:
-				m.handleRequestToEditSavedTL()
-			}
-		case "ctrl+d":
-			var handleCmd tea.Cmd
-			switch m.activeView {
-			case taskListView:
-				handleCmd = m.getCmdToDeactivateTask()
-			case taskLogView:
-				handleCmd = m.getCmdToDeleteTL()
-			case inactiveTaskListView:
-				handleCmd = m.getCmdToActivateDeactivatedTask()
-			}
-			if handleCmd != nil {
-				cmds = append(cmds, handleCmd)
-			}
-		case "ctrl+x":
-			if m.activeView == taskListView && m.trackingActive {
-				cmds = append(cmds, deleteActiveTL(m.db))
-			}
-		case "s":
-			if m.activeView == taskListView {
-				switch m.lastTrackingChange {
-				case trackingFinished:
-					trackCmd := m.getCmdToStartTracking()
-					if trackCmd != nil {
-						cmds = append(cmds, trackCmd)
-					}
-				case trackingStarted:
-					m.handleRequestToStopTracking()
-				}
-			}
-		case "S":
-			if m.activeView != taskListView {
-				break
-			}
-			quickSwitchCmd := m.getCmdToQuickSwitchTracking()
-			if quickSwitchCmd != nil {
-				cmds = append(cmds, quickSwitchCmd)
-			}
-		case "a":
-			if m.activeView == taskListView {
-				m.handleRequestToCreateTask()
-			}
-		case "c":
-			if m.activeView == taskListView || m.activeView == inactiveTaskListView {
-				m.handleCopyTaskSummary()
-			}
-		case "k":
-			m.handleRequestToScrollVPUp()
-		case "j":
-			m.handleRequestToScrollVPDown()
-		case "d":
-			if m.activeView == taskLogView {
-				m.handleRequestToViewTLDetails()
-			}
-		case "m":
-			if m.activeView == taskLogView {
-				cmd := m.handleRequestToMoveTaskLog()
-				return m, cmd
-			}
-		case "A":
-			if m.activeView == taskListView {
-				twoWeeksAgo := m.timeProvider.Now().AddDate(0, 0, -14)
-				cmds = append(cmds, archiveStaleTasks(m.db, twoWeeksAgo))
-			}
-		case "?":
-			m.lastView = m.activeView
-			m.activeView = helpView
+// handleListKeys handles key events that operate on lists and views (navigation
+// shortcuts, task/log actions, viewport scrolling, help).
+func (m *Model) handleListKeys(keyMsg tea.KeyMsg) []tea.Cmd {
+	var cmds []tea.Cmd
+	switch keyMsg.String() {
+	case "q", escape:
+		if m.handleRequestToGoBackOrQuit() {
+			return []tea.Cmd{tea.Quit}
 		}
+	case "1":
+		if m.activeView != taskListView {
+			m.activeView = taskListView
+		}
+	case "2":
+		if m.activeView != taskLogView {
+			m.activeView = taskLogView
+		}
+	case "3":
+		if m.activeView != inactiveTaskListView {
+			m.activeView = inactiveTaskListView
+		}
+	case "ctrl+r":
+		if reloadCmd := m.getCmdToReloadData(); reloadCmd != nil {
+			cmds = append(cmds, reloadCmd)
+		}
+	case "ctrl+t":
+		m.goToActiveTask()
+	case "f":
+		if m.activeView != taskListView {
+			break
+		}
+
+		if !m.trackingActive {
+			m.message = errMsg("Nothing is being tracked right now")
+			break
+		}
+
+		if handleCmd := m.getCmdToFinishActiveTL(); handleCmd != nil {
+			cmds = append(cmds, handleCmd)
+		}
+	case "ctrl+s":
+		switch m.activeView {
+		case taskListView:
+			switch m.trackingActive {
+			case true:
+				m.handleRequestToEditActiveTL()
+			case false:
+				m.handleRequestToCreateManualTL()
+			}
+		case taskLogView:
+			m.handleRequestToEditSavedTL()
+		}
+	case "u":
+		switch m.activeView {
+		case taskListView:
+			m.handleRequestToUpdateTask()
+		case taskLogView:
+			m.handleRequestToEditSavedTL()
+		}
+	case "ctrl+d":
+		var handleCmd tea.Cmd
+		switch m.activeView {
+		case taskListView:
+			handleCmd = m.getCmdToDeactivateTask()
+		case taskLogView:
+			handleCmd = m.getCmdToDeleteTL()
+		case inactiveTaskListView:
+			handleCmd = m.getCmdToActivateDeactivatedTask()
+		}
+		if handleCmd != nil {
+			cmds = append(cmds, handleCmd)
+		}
+	case "ctrl+x":
+		if m.activeView == taskListView && m.trackingActive {
+			cmds = append(cmds, deleteActiveTL(m.db))
+		}
+	case "s":
+		if m.activeView == taskListView {
+			switch m.lastTrackingChange {
+			case trackingFinished:
+				if trackCmd := m.getCmdToStartTracking(); trackCmd != nil {
+					cmds = append(cmds, trackCmd)
+				}
+			case trackingStarted:
+				m.handleRequestToStopTracking()
+			}
+		}
+	case "S":
+		if m.activeView != taskListView {
+			break
+		}
+		if quickSwitchCmd := m.getCmdToQuickSwitchTracking(); quickSwitchCmd != nil {
+			cmds = append(cmds, quickSwitchCmd)
+		}
+	case "a":
+		if m.activeView == taskListView {
+			m.handleRequestToCreateTask()
+		}
+	case "c":
+		if m.activeView == taskListView || m.activeView == inactiveTaskListView {
+			m.handleCopyTaskSummary()
+		}
+	case "k":
+		m.handleRequestToScrollVPUp()
+	case "j":
+		m.handleRequestToScrollVPDown()
+	case "d":
+		if m.activeView == taskLogView {
+			m.handleRequestToViewTLDetails()
+		}
+	case "m":
+		if m.activeView == taskLogView {
+			if cmd := m.handleRequestToMoveTaskLog(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+	case "A":
+		if m.activeView == taskListView {
+			twoWeeksAgo := m.timeProvider.Now().AddDate(0, 0, -14)
+			cmds = append(cmds, archiveStaleTasks(m.db, twoWeeksAgo))
+		}
+	case "?":
+		m.lastView = m.activeView
+		m.activeView = helpView
+	}
+	return cmds
+}
+
+// handleMsg handles all typed (non-key) messages produced by async commands.
+func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+	switch msg := msg.(type) {
 	case taskCreatedMsg:
 		if msg.err != nil {
 			m.message = errMsg(fmt.Sprintf("Error creating task: %s", msg.err))
@@ -332,8 +388,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.tsk.UpdateListTitle()
 		}
 	case tasksFetchedMsg:
-		handleCmd := m.handleTasksFetchedMsg(msg)
-		if handleCmd != nil {
+		if handleCmd := m.handleTasksFetchedMsg(msg); handleCmd != nil {
 			cmds = append(cmds, handleCmd)
 		}
 	case activeTLUpdatedMsg:
@@ -344,13 +399,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.activeTLComment = msg.comment
 		}
 	case manualTLInsertedMsg:
-		handleCmds := m.handleManualTLInsertedMsg(msg)
-		if handleCmds != nil {
+		if handleCmds := m.handleManualTLInsertedMsg(msg); handleCmds != nil {
 			cmds = append(cmds, handleCmds...)
 		}
 	case savedTLEditedMsg:
-		handleCmds := m.handleSavedTLEditedMsg(msg)
-		if handleCmds != nil {
+		if handleCmds := m.handleSavedTLEditedMsg(msg); handleCmds != nil {
 			cmds = append(cmds, handleCmds...)
 		}
 	case tLsFetchedMsg:
@@ -358,13 +411,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case activeTaskFetchedMsg:
 		m.handleActiveTaskFetchedMsg(msg)
 	case trackingToggledMsg:
-		updateCmds := m.handleTrackingToggledMsg(msg)
-		if updateCmds != nil {
+		if updateCmds := m.handleTrackingToggledMsg(msg); updateCmds != nil {
 			cmds = append(cmds, updateCmds...)
 		}
 	case activeTLSwitchedMsg:
-		updateCmd := m.handleActiveTLSwitchedMsg(msg)
-		if updateCmd != nil {
+		if updateCmd := m.handleActiveTLSwitchedMsg(msg); updateCmd != nil {
 			cmds = append(cmds, updateCmd)
 		}
 	case taskRepUpdatedMsg:
@@ -374,8 +425,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			msg.tsk.UpdateListDesc(m.timeProvider)
 		}
 	case tLDeletedMsg:
-		updateCmds := m.handleTLDeleted(msg)
-		if updateCmds != nil {
+		if updateCmds := m.handleTLDeleted(msg); updateCmds != nil {
 			cmds = append(cmds, updateCmds...)
 		}
 	case taskLogMovedMsg:
@@ -399,7 +449,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case hideHelpMsg:
 		m.showHelpIndicator = false
 	}
+	return cmds
+}
 
+// updateActiveView propagates a message to the list or viewport that
+// corresponds to the currently active view.
+func (m *Model) updateActiveView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
 	switch m.activeView {
 	case taskListView:
 		m.activeTasksList, cmd = m.activeTasksList.Update(msg)
@@ -417,8 +474,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.helpVP, cmd = m.helpVP.Update(msg)
 		cmds = append(cmds, cmd)
 	}
-
-	return m, tea.Batch(cmds...)
+	return cmds
 }
 
 func (m recordsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
