@@ -4,7 +4,56 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestParseTaskStatus(t *testing.T) {
+	testCases := []struct {
+		name        string
+		input       string
+		expected    TaskStatus
+		expectError bool
+	}{
+		{
+			name:     "active",
+			input:    TSValueActive,
+			expected: TaskStatusActive,
+		},
+		{
+			name:     "inactive",
+			input:    TSValueInactive,
+			expected: TaskStatusInactive,
+		},
+		{
+			name:     "any",
+			input:    TSValueAny,
+			expected: TaskStatusAny,
+		},
+		{
+			name:        "unknown value returns error",
+			input:       "unknown",
+			expectError: true,
+		},
+		{
+			name:        "empty string returns error",
+			input:       "",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseTaskStatus(tt.input)
+			if tt.expectError {
+				require.Error(t, err)
+				require.ErrorIs(t, err, ErrIncorrectTaskStatusProvided)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+		})
+	}
+}
 
 func TestHumanizeDuration(t *testing.T) {
 	testCases := []struct {
