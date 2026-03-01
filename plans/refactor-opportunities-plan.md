@@ -86,7 +86,17 @@ This document captures sensible refactors identified after reviewing the current
     - Proposed helper builder to initialize list models with shared defaults and small overrides.
     - Expected benefit: cleaner initialization path.
 
-## Suggested Execution Plan (PR-Sized)
+11. **Split UI views into feature-scoped files for navigability (PR8)** ✅ **DONE**
+    - `handle.go` (988→430 lines), `update.go` (573→487 lines), and `view.go` (404→320 lines) mix concerns from all 12 view states in single files.
+    - ✅ Same-package split completed:
+      - `view_task_list.go`: task list handlers (goToActiveTask, getCmdToStartTracking, getCmdToQuickSwitchTracking, getCmdToDeactivateTask, getCmdToCreateOrUpdateTask, handleRequestToCreateTask, handleRequestToUpdateTask, handleCopyTaskSummary)
+      - `view_task_log.go`: task log handlers (getCmdToDeleteTL, handleRequestToEditSavedTL, handleRequestToMoveTaskLog, handleTargetTaskSelection, handleRequestToViewTLDetails)
+      - `view_forms.go`: form handlers (getCmdToUpdateActiveTL, getCmdToFinishTrackingActiveTL, getCmdToFinishActiveTLWithoutComment, getCmdToCreateOrEditTL, handleRequestToEditActiveTL, handleRequestToCreateManualTL, handleRequestToStopTracking, handleEscapeInForms, goForwardInView, goBackwardInView, shiftTime, clearAllTaskLogInputs)
+      - `view_inactive_tasks.go`: inactive task handlers (getCmdToActivateDeactivatedTask)
+      - `view_records.go`: recordsModel View/Update methods
+    - ✅ Kept shared infrastructure: `Model`, `msgs.go`, `cmds.go`, `styles.go`, `initial.go`
+    - ✅ No logic changes, no exported API changes, no package boundary changes.
+    - ✅ All tests pass, reduced file sizes improve navigability.
 
 ### PR 1: Safety Net ✅ DONE
 
@@ -139,7 +149,19 @@ This document captures sensible refactors identified after reviewing the current
 - ✅ `getInvalidColors` reduced from 94-line manual if-chain to a loop + tasks slice pass.
 - ✅ Added dedicated unit tests in `internal/ui/theme/theme_validation_test.go`; existing `theme_test.go` unchanged.
 
-## Caution Areas
+### PR 8: UI View File Organization (Navigability) ✅ **DONE**
+
+- ✅ Split `handle.go`, `view.go`, and parts of `update.go` into feature-scoped files:
+  - `view_task_list.go` - task list handlers and view rendering
+  - `view_task_log.go` - task log handlers and view rendering  
+  - `view_forms.go` - form views (editActiveTL, finishActiveTL, manualTasklogEntry, editSavedTL)
+  - `view_inactive_tasks.go` - inactive task handlers and view
+  - `view_records.go` - recordsModel Update/View methods
+- ✅ Kept shared infrastructure intact: `Model`, `msgs.go`, `cmds.go`, `styles.go`, `initial.go`
+- ✅ No logic changes, no exported API changes, no package boundary changes.
+- ✅ All existing tests continue to pass without modification.
+- ✅ Reduced file sizes: handle.go (988→430 lines), view.go (404→320 lines), update.go (573→487 lines)
+- ✅ Improved discoverability of view-specific code.
 
 - UI snapshots are sensitive to rendering/layout changes (`internal/ui/view_test.go`).
 - `secs_spent` invariants in persistence are critical; refactors must preserve exact accounting.

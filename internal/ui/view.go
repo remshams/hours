@@ -333,45 +333,6 @@ func (m Model) View() string {
 	return result
 }
 
-func (m recordsModel) View() string {
-	if m.err != nil {
-		return fmt.Sprintf("Something went wrong: %s\n", m.err)
-	}
-	var help string
-
-	var dateRangeStr string
-	var dateRange string
-	if m.dateRange.NumDays > 1 {
-		dateRangeStr = fmt.Sprintf(`
- range:             %s...%s
- `,
-			m.dateRange.Start.Format(dateFormat), m.dateRange.End.AddDate(0, 0, -1).Format(dateFormat))
-	} else {
-		dateRangeStr = fmt.Sprintf(`
- date:              %s
-`,
-			m.dateRange.Start.Format(dateFormat))
-	}
-
-	helpStr := `
- go backwards:      h or <-
- go forwards:       l or ->
- go to today:       ctrl+t
-
- press ctrl+c/q to quit
-`
-
-	if m.plain {
-		help = helpStr
-		dateRange = dateRangeStr
-	} else {
-		help = m.style.recordsHelp.Render(helpStr)
-		dateRange = m.style.recordsDateRange.Render(dateRangeStr)
-	}
-
-	return fmt.Sprintf("%s%s%s", m.report, dateRange, help)
-}
-
 func getDurationValidityContext(beginStr, endStr string) (string, tlFormValidity) {
 	beginTS, endTS, err := types.ParseTaskLogTimes(beginStr, endStr)
 	if err != nil {
