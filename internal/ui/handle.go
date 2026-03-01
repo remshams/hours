@@ -381,6 +381,96 @@ func (m *Model) handleTLDeleted(msg tLDeletedMsg) []tea.Cmd {
 	return cmds
 }
 
+// handleMsg handles all typed (non-key) messages produced by async commands.
+func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+	switch msg := msg.(type) {
+	case taskCreatedMsg:
+		if msg.err != nil {
+			m.message = errMsg(fmt.Sprintf("Error creating task: %s", msg.err))
+		} else {
+			cmds = append(cmds, fetchTasks(m.db, true))
+		}
+	case staleTasksArchivedMsg:
+		if msg.err != nil {
+			m.message = errMsg(fmt.Sprintf("Error archiving tasks: %s", msg.err))
+		} else {
+			m.message = infoMsg(fmt.Sprintf("Archived %d tasks", msg.count))
+			cmds = append(cmds, fetchTasks(m.db, true))
+			cmds = append(cmds, fetchTasks(m.db, false))
+		}
+	case taskUpdatedMsg:
+		if msg.err != nil {
+			m.message = errMsg(fmt.Sprintf("Error updating task: %s", msg.err))
+		} else {
+			msg.tsk.Summary = msg.summary
+			msg.tsk.UpdateListTitle()
+		}
+	case tasksFetchedMsg:
+		if handleCmd := m.handleTasksFetchedMsg(msg); handleCmd != nil {
+			cmds = append(cmds, handleCmd)
+		}
+	case activeTLUpdatedMsg:
+		if msg.err != nil {
+			m.message = errMsg(msg.err.Error())
+		} else {
+			m.activeTLBeginTS = msg.beginTS
+			m.activeTLComment = msg.comment
+		}
+	case manualTLInsertedMsg:
+		if handleCmds := m.handleManualTLInsertedMsg(msg); handleCmds != nil {
+			cmds = append(cmds, handleCmds...)
+		}
+	case savedTLEditedMsg:
+		if handleCmds := m.handleSavedTLEditedMsg(msg); handleCmds != nil {
+			cmds = append(cmds, handleCmds...)
+		}
+	case tLsFetchedMsg:
+		m.handleTLSFetchedMsg(msg)
+	case activeTaskFetchedMsg:
+		m.handleActiveTaskFetchedMsg(msg)
+	case trackingToggledMsg:
+		if updateCmds := m.handleTrackingToggledMsg(msg); updateCmds != nil {
+			cmds = append(cmds, updateCmds...)
+		}
+	case activeTLSwitchedMsg:
+		if updateCmd := m.handleActiveTLSwitchedMsg(msg); updateCmd != nil {
+			cmds = append(cmds, updateCmd)
+		}
+	case taskRepUpdatedMsg:
+		if msg.err != nil {
+			m.message = errMsg(fmt.Sprintf("Error updating task status: %s", msg.err))
+		} else {
+			msg.tsk.UpdateListDesc(m.timeProvider)
+		}
+	case tLDeletedMsg:
+		if updateCmds := m.handleTLDeleted(msg); updateCmds != nil {
+			cmds = append(cmds, updateCmds...)
+		}
+	case taskLogMovedMsg:
+		if msg.err != nil {
+			m.message = errMsg(fmt.Sprintf("Error moving task log: %s", msg.err))
+		} else {
+			cmds = append(cmds, fetchTLS(m.db, nil))
+			cmds = append(cmds, fetchTasks(m.db, true))
+		}
+		m.activeView = taskLogView
+		m.targetTasksList.ResetFilter()
+	case activeTaskLogDeletedMsg:
+		m.handleActiveTLDeletedMsg(msg)
+	case taskActiveStatusUpdatedMsg:
+		if msg.err != nil {
+			m.message = errMsg("Error updating task's active status: " + msg.err.Error())
+		} else {
+			cmds = append(cmds, fetchTasks(m.db, true))
+			cmds = append(cmds, fetchTasks(m.db, false))
+		}
+	case hideHelpMsg:
+		m.showHelpIndicator = false
+	}
+	return cmds
+}
+
 func (m *Model) handleActiveTLDeletedMsg(msg activeTaskLogDeletedMsg) {
 	if msg.err != nil {
 		m.message = errMsg(fmt.Sprintf("Error deleting active log entry: %s", msg.err))

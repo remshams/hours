@@ -9,6 +9,119 @@ import (
 	"github.com/dhth/hours/internal/types"
 )
 
+// handleFormKeys handles key events that are only meaningful while a form view
+// is active: enter/ctrl+s (submit), esc (cancel), tab/shift+tab (field
+// navigation), and j/k/J/K/h/l (time-shifting).  Returns exitEarly=true when
+// the caller should return immediately after processing.
+func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cmd) {
+	switch keyMsg.String() {
+	case enter, "ctrl+s":
+		var bail bool
+		if keyMsg.String() == enter {
+			switch m.activeView {
+			case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+				if m.trackingFocussedField == entryComment {
+					bail = true
+				}
+			}
+		}
+
+		if bail {
+			return false, nil
+		}
+
+		var updateCmd tea.Cmd
+		switch m.activeView {
+		case taskInputView:
+			updateCmd = m.getCmdToCreateOrUpdateTask()
+		case editActiveTLView:
+			updateCmd = m.getCmdToUpdateActiveTL()
+		case finishActiveTLView:
+			updateCmd = m.getCmdToFinishTrackingActiveTL()
+		case manualTasklogEntryView, editSavedTLView:
+			updateCmd = m.getCmdToCreateOrEditTL()
+		case moveTaskLogView:
+			if keyMsg.String() == enter {
+				updateCmd = m.handleTargetTaskSelection()
+			}
+		}
+		if updateCmd != nil {
+			return true, []tea.Cmd{updateCmd}
+		}
+
+	case escape:
+		switch m.activeView {
+		case taskInputView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
+			m.handleEscapeInForms()
+			return true, nil
+		}
+
+	case "tab":
+		m.goForwardInView()
+
+	case "shift+tab":
+		m.goBackwardInView()
+
+	case "k":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftBackward, types.ShiftMinute); err != nil {
+				return true, nil
+			}
+		}
+
+	case "j":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftForward, types.ShiftMinute); err != nil {
+				return true, nil
+			}
+		}
+
+	case "K":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftBackward, types.ShiftFiveMinutes); err != nil {
+				return true, nil
+			}
+		}
+
+	case "J":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftForward, types.ShiftFiveMinutes); err != nil {
+				return true, nil
+			}
+		}
+
+	case "h":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftBackward, types.ShiftDay); err != nil {
+				return true, nil
+			}
+		case taskLogDetailsView:
+			m.taskLogList.CursorUp()
+			m.handleRequestToViewTLDetails()
+			return true, nil
+		}
+
+	case "l":
+		switch m.activeView {
+		case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
+			if err := m.shiftTime(types.ShiftForward, types.ShiftDay); err != nil {
+				return true, nil
+			}
+		case taskLogDetailsView:
+			m.taskLogList.CursorDown()
+			m.handleRequestToViewTLDetails()
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (m *Model) getCmdToUpdateActiveTL() tea.Cmd {
 	beginTS, err := time.ParseInLocation(timeFormat, m.tLInputs[entryBeginTS].Value(), time.Local)
 	if err != nil {

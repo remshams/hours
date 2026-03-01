@@ -4,7 +4,7 @@
 
 This repository uses **JJ (Jujutsu)** for version control, not git directly. Use `jj` commands instead of `git` for local operations.
 
-## Making Changesets
+## Making Changesets or changes
 
 - Keep changesets small and focused on a single concern
 - Write meaningful descriptions using imperative mood (e.g., "Add feature", "Fix bug")
