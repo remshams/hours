@@ -193,6 +193,68 @@ func TestGetCmdToStartTracking(t *testing.T) {
 	}
 }
 
+func TestGetCmdToFinishActiveTLWithoutComment(t *testing.T) {
+	testCases := []struct {
+		name           string
+		setupModel     func() Model
+		expectCmd      bool
+		expectMsg      string
+		expectMsgKind  userMsgKind
+		expectEndTSSet bool
+	}{
+		{
+			name: "success - valid duration returns command",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.trackingActive = true
+				m.activeTaskID = 1
+				// Begin 2 hours ago - valid duration
+				m.activeTLBeginTS = m.timeProvider.Now().Add(-2 * time.Hour)
+				return m
+			},
+			expectCmd:      true,
+			expectEndTSSet: true,
+		},
+		{
+			name: "duration too short - shows info message",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.trackingActive = true
+				m.activeTaskID = 1
+				// Begin 1 second ago - too short
+				m.activeTLBeginTS = m.timeProvider.Now().Add(-1 * time.Second)
+				return m
+			},
+			expectCmd:      false,
+			expectMsg:      "Task log duration is too short to save; press <ctrl+x> if you want to discard it",
+			expectMsgKind:  userMsgInfo,
+			expectEndTSSet: false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.setupModel()
+			originalEndTS := m.activeTLEndTS
+
+			cmd := m.getCmdToFinishActiveTLWithoutComment()
+
+			if tt.expectCmd {
+				assert.NotNil(t, cmd)
+			} else {
+				assert.Nil(t, cmd)
+			}
+			if tt.expectMsg != "" {
+				assert.Equal(t, tt.expectMsg, m.message.value)
+				assert.Equal(t, tt.expectMsgKind, m.message.kind)
+			}
+			if tt.expectEndTSSet {
+				assert.NotEqual(t, originalEndTS, m.activeTLEndTS)
+			}
+		})
+	}
+}
+
 func TestGetCmdToQuickSwitchTracking(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -575,6 +637,110 @@ func TestHandleTargetTaskSelection(t *testing.T) {
 			}
 			if tt.expectMsg != "" {
 				assert.Equal(t, tt.expectMsg, m.message.value)
+			}
+		})
+	}
+}
+
+func TestGoToActiveTask(t *testing.T) {
+	testCases := []struct {
+		name           string
+		setupModel     func() Model
+		expectSelected bool
+		expectMsg      string
+		expectFiltered bool
+	}{
+		{
+			name: "success - navigates to active task",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.trackingActive = true
+				m.activeTaskID = 1
+				task := createTestTask(1, "Active task", true, false, m.timeProvider)
+				m.taskMap[1] = task
+				m.taskIndexMap[1] = 2
+				m.activeTasksList.SetItems([]list.Item{
+					createTestTask(2, "Other task", true, false, m.timeProvider),
+					createTestTask(3, "Another task", true, false, m.timeProvider),
+					task,
+				})
+				return m
+			},
+			expectSelected: true,
+			expectFiltered: false,
+		},
+		{
+			name: "resets filter and navigates",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.trackingActive = true
+				m.activeTaskID = 2
+				// Set up multiple tasks so we can verify selection change
+				task1 := createTestTask(1, "First task", true, false, m.timeProvider)
+				task2 := createTestTask(2, "Active task", true, false, m.timeProvider)
+				m.taskMap[2] = task2
+				m.taskIndexMap[2] = 1 // Active task is at index 1
+				m.activeTasksList.SetItems([]list.Item{task1, task2})
+				m.activeTasksList.Select(0) // Start at index 0
+				// Simulate a filter being applied
+				m.activeTasksList.SetFilterText("filtered")
+				return m
+			},
+			expectSelected: true,
+			expectFiltered: false, // Filter should be reset
+		},
+		{
+			name: "not in task list view - returns early",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.activeView = taskLogView
+				m.trackingActive = true
+				m.activeTaskID = 1
+				return m
+			},
+			expectSelected: false,
+			expectMsg:      "",
+		},
+		{
+			name: "not tracking - shows error",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.trackingActive = false
+				return m
+			},
+			expectSelected: false,
+			expectMsg:      "Nothing is being tracked right now",
+		},
+		{
+			name: "task not in map - shows error",
+			setupModel: func() Model {
+				m := createTestModel()
+				m.trackingActive = true
+				m.activeTaskID = 999 // ID that doesn't exist in taskMap
+				return m
+			},
+			expectSelected: false,
+			expectMsg:      genericErrorMsg,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.setupModel()
+			originalIndex := m.activeTasksList.Index()
+
+			m.goToActiveTask()
+
+			if tt.expectMsg != "" {
+				assert.Equal(t, tt.expectMsg, m.message.value)
+			}
+			if tt.expectSelected {
+				// Should have selected the active task
+				assert.NotEqual(t, originalIndex, m.activeTasksList.Index())
+			}
+			if !tt.expectFiltered {
+				// Filter should be reset
+				assert.Equal(t, list.Unfiltered, m.activeTasksList.FilterState())
 			}
 		})
 	}
