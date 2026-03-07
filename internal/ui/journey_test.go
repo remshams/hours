@@ -726,10 +726,10 @@ func TestJourneyFlowAutoStopAndConditionalResume(t *testing.T) {
 		h.assertTrackingState(false, -1)
 
 		lockCmds := h.model.handleMsg(sessionStateChangedMsg{event: session.Event{Type: session.EventLocked, At: h.timeProvider.FixedTime.Add(5 * time.Minute)}})
-		require.Len(t, lockCmds, 0)
+		require.Empty(t, lockCmds)
 
 		unlockCmds := h.model.handleMsg(sessionStateChangedMsg{event: session.Event{Type: session.EventUnlocked, At: h.timeProvider.FixedTime.Add(10 * time.Minute)}})
-		require.Len(t, unlockCmds, 0)
+		require.Empty(t, unlockCmds)
 
 		assert.False(t, h.model.sessionLocked)
 		assert.Equal(t, -1, h.model.autoResumeTaskID)

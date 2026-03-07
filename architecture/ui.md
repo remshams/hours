@@ -104,7 +104,7 @@ The `internal/ui` package implements two BubbleTea models:
 | --- | --- |
 | model.go | Model struct, all enums/types, Init() |
 | initial.go | InitialModel(), initialRecordsModel() constructors |
-| msgs.go | All 17 tea.Msg types |
+| msgs.go | UI-specific `tea.Msg` types |
 | cmds.go | DB → tea.Cmd factories |
 | handle.go | All handler & getCmdTo… methods (966 lines) |
 | update.go | Update() dispatch only (508 lines) |
@@ -114,7 +114,7 @@ The `internal/ui` package implements two BubbleTea models:
 | report.go / log.go / stats.go | Standalone table renderers |
 | theme/ | Theme struct + 8 built-in palettes |
 
-**Naming conventions in **`handle.go`**:**
+**Naming conventions in `handle.go`:**
 
 - `getCmdTo…` — validates input, returns a `tea.Cmd` (issues a DB command)
 - `handleRequest…` / `handle…` — mutates model state, no DB interaction
@@ -139,7 +139,7 @@ graph TD
 
     subgraph Core["Core Files"]
         model_go["model.go\nstruct + enums + Init()"]
-        msgs_go["msgs.go\n17 message types"]
+        msgs_go["msgs.go\nUI-specific message types"]
         cmds_go["cmds.go\nDB → tea.Cmd"]
         handle_go["handle.go\nAll handler logic"]
         update_go["update.go\nUpdate() dispatch"]
@@ -213,7 +213,7 @@ flowchart TD
 
     subgraph P6["Pass 6: Navigation + async messages"]
         NAVKEYS["Key → view switch or action\n(q/esc, 1/2/3, ctrl+r, s, S, a, u,\nctrl+d, ctrl+s, ctrl+x, f, d, m, A, ?)"]
-        ASYNCMSGS["Async msg → handleXxxMsg()\n(17 message types)"]
+        ASYNCMSGS["Async msg → handleXxxMsg()\n(UI-specific message types)"]
     end
 
     P6 --> P7["Pass 7: Forward msg to active\nlist or viewport sub-model"]
