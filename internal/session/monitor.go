@@ -45,10 +45,10 @@ func NewMonitor(ctx context.Context) Monitor {
 		return eventMonitor
 	}
 
-	return newMonitor(ctx, newLockStatePoller(), defaultPollInterval)
+	return newPollingMonitor(ctx, newLockStatePoller(), defaultPollInterval)
 }
 
-func newMonitor(ctx context.Context, poller lockStatePoller, interval time.Duration) Monitor {
+func newPollingMonitor(ctx context.Context, poller lockStatePoller, interval time.Duration) Monitor {
 	if poller == nil {
 		return noopMonitor{}
 	}

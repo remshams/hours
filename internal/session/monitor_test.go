@@ -34,7 +34,7 @@ func (p *sequencePoller) Locked(context.Context) (bool, error) {
 }
 
 func TestNewMonitorWithNilPollerReturnsNoop(t *testing.T) {
-	monitor := newMonitor(context.Background(), nil, time.Millisecond)
+	monitor := newPollingMonitor(context.Background(), nil, time.Millisecond)
 	t.Cleanup(func() {
 		require.NoError(t, monitor.Close())
 	})
@@ -43,7 +43,7 @@ func TestNewMonitorWithNilPollerReturnsNoop(t *testing.T) {
 }
 
 func TestPollingMonitorEmitsStateTransitions(t *testing.T) {
-	monitor := newMonitor(
+	monitor := newPollingMonitor(
 		context.Background(),
 		&sequencePoller{states: []bool{false, false, true, true, false}},
 		5*time.Millisecond,
@@ -63,7 +63,11 @@ func readEvent(t *testing.T, events <-chan Event) Event {
 	t.Helper()
 
 	select {
-	case event := <-events:
+	case event, ok := <-events:
+		if !ok {
+			t.Fatal("session event channel closed unexpectedly")
+			return Event{}
+		}
 		return event
 	case <-time.After(250 * time.Millisecond):
 		t.Fatal("timed out waiting for session event")
