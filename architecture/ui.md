@@ -20,10 +20,10 @@ No circular dependencies. `utils` and `common` are leaves with no internal deps.
 Three tables in SQLite (`modernc.org/sqlite`, pure-Go driver):
 
 | Table | Key Columns | Notes |
-|---|---|---|
-| `task` | `id`, `summary`, `secs_spent`, `active` | `secs_spent` is a **denormalized total** kept in sync on every write |
-| `task_log` | `id`, `task_id`, `begin_ts`, `end_ts`, `secs_spent`, `comment`, `active` | `end_ts` is NULL while a session is open; `active=1` means currently tracking |
-| `db_versions` | `id`, `version`, `created_at` | Append-only migration log |
+| --- | --- | --- |
+| task | id, summary, secs_spent, active | secs_spent is a denormalized total kept in sync on every write |
+| task_log | id, task_id, begin_ts, end_ts, secs_spent, comment, active | end_ts is NULL while a session is open; active=1 means currently tracking |
+| db_versions | id, version, created_at | Append-only migration log |
 
 A DB trigger (`prevent_duplicate_active_insert`) enforces that only **one** `task_log` row can have `active=1` at any time.
 
@@ -91,36 +91,33 @@ graph TD
     DomainTypes --> strhelpers
 ```
 
----
-
 # UI Architecture
 
 The `internal/ui` package implements two BubbleTea models:
 
-- **`Model`** — the main interactive TUI launched by `RenderUI()`
-- **`recordsModel`** — a lightweight pagination shell for the non-interactive `report`/`log`/`stats` subcommands
+- `Model` — the main interactive TUI launched by `RenderUI()`
+- `recordsModel` — a lightweight pagination shell for the non-interactive `report`/`log`/`stats` subcommands
 
 ## File Overview
 
 | File | Purpose |
-|---|---|
-| `model.go` | `Model` struct, all enums/types, `Init()` |
-| `initial.go` | `InitialModel()`, `initialRecordsModel()` constructors |
-| `msgs.go` | All 17 `tea.Msg` types |
-| `cmds.go` | DB → `tea.Cmd` factories |
-| `handle.go` | All handler & `getCmdTo…` methods (966 lines) |
-| `update.go` | `Update()` dispatch only (508 lines) |
-| `view.go` | `View()` rendering only (404 lines) |
-| `styles.go` | `Style` struct, `NewStyle()` |
-| `help.go` | `getHelpText()` |
-| `report.go` / `log.go` / `stats.go` | Standalone table renderers |
-| `theme/` | `Theme` struct + 8 built-in palettes |
+| --- | --- |
+| model.go | Model struct, all enums/types, Init() |
+| initial.go | InitialModel(), initialRecordsModel() constructors |
+| msgs.go | All 17 tea.Msg types |
+| cmds.go | DB → tea.Cmd factories |
+| handle.go | All handler & getCmdTo… methods (966 lines) |
+| update.go | Update() dispatch only (508 lines) |
+| view.go | View() rendering only (404 lines) |
+| styles.go | Style struct, NewStyle() |
+| help.go | getHelpText() |
+| report.go / log.go / stats.go | Standalone table renderers |
+| theme/ | Theme struct + 8 built-in palettes |
 
-**Naming conventions in `handle.go`:**
+**Naming conventions in **`handle.go`**:**
+
 - `getCmdTo…` — validates input, returns a `tea.Cmd` (issues a DB command)
 - `handleRequest…` / `handle…` — mutates model state, no DB interaction
-
----
 
 ## Diagrams
 
@@ -176,8 +173,6 @@ graph TD
     RenderStats --> stats_go
 ```
 
----
-
 ### 3. Update Dispatch (7 Passes)
 
 ```mermaid
@@ -225,8 +220,6 @@ flowchart TD
     P7 --> RETURN([return m, cmds])
 ```
 
----
-
 ### 4. View Rendering
 
 ```mermaid
@@ -251,8 +244,6 @@ graph TD
     JOIN --> RETURN(["return string"])
 ```
 
----
-
 ### 5. Async Command / Message Cycle
 
 ```mermaid
@@ -271,8 +262,6 @@ sequenceDiagram
     H-->>U: []tea.Cmd (follow-up cmds)
     Note over U,H: e.g. trackingToggledMsg<br/>→ updateTaskRep + fetchTLS
 ```
-
----
 
 ### 6. View State Transitions
 
