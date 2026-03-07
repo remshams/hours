@@ -95,9 +95,35 @@ func (m *Model) getCmdToStartTracking() tea.Cmd {
 		return nil
 	}
 
+	return m.getCmdToStartTrackingTask(task.ID)
+}
+
+func (m *Model) getCmdToStartTrackingTask(taskID int) tea.Cmd {
+	return m.getCmdToStartTrackingTaskAt(taskID, time.Time{})
+}
+
+func (m *Model) normalizedTrackingTS(ts time.Time) time.Time {
+	if ts.IsZero() {
+		ts = m.timeProvider.Now()
+	}
+
+	return ts.Truncate(time.Second)
+}
+
+func (m *Model) getCmdToStartTrackingTaskAt(taskID int, startedAt time.Time) tea.Cmd {
+	if _, ok := m.taskMap[taskID]; !ok {
+		m.message = errMsg(genericErrorMsg)
+		return nil
+	}
+
+	m.autoResumeNoticePending = false
+	m.autoResumePauseDuration = 0
+	m.autoStopTaskID = -1
+	m.autoResumeTaskID = -1
+	m.autoResumeAt = time.Time{}
 	m.changesLocked = true
-	m.activeTLBeginTS = m.timeProvider.Now().Truncate(time.Second)
-	return toggleTracking(m.db, task.ID, m.activeTLBeginTS, m.activeTLEndTS, nil)
+	m.activeTLBeginTS = m.normalizedTrackingTS(startedAt)
+	return toggleTracking(m.db, taskID, m.activeTLBeginTS, m.activeTLEndTS, nil)
 }
 
 func (m *Model) getCmdToQuickSwitchTracking() tea.Cmd {
@@ -112,17 +138,58 @@ func (m *Model) getCmdToQuickSwitchTracking() tea.Cmd {
 	}
 
 	if !m.trackingActive {
-		m.changesLocked = true
-		m.activeTLBeginTS = m.timeProvider.Now().Truncate(time.Second)
-		return toggleTracking(m.db,
-			task.ID,
-			m.activeTLBeginTS,
-			m.activeTLEndTS,
-			nil,
-		)
+		return m.getCmdToStartTrackingTask(task.ID)
 	}
 
 	return quickSwitchActiveIssue(m.db, task.ID, m.timeProvider.Now())
+}
+
+func (m *Model) getCmdToAutoStopTracking() tea.Cmd {
+	return m.getCmdToAutoStopTrackingAt(time.Time{})
+}
+
+func (m *Model) getCmdToAutoStopTrackingAt(stoppedAt time.Time) tea.Cmd {
+	if !m.trackingActive || m.activeTaskID < 0 {
+		return nil
+	}
+
+	m.autoResumeNoticePending = false
+	m.autoResumePauseDuration = 0
+	m.autoStopTaskID = m.activeTaskID
+	m.autoResumeTaskID = -1
+	m.autoResumeAt = time.Time{}
+	m.changesLocked = true
+	m.activeTLEndTS = m.normalizedTrackingTS(stoppedAt)
+
+	return toggleTracking(m.db, m.activeTaskID, m.activeTLBeginTS, m.activeTLEndTS, m.activeTLComment)
+}
+
+func (m *Model) getCmdToResumeAutoStoppedTask() tea.Cmd {
+	return m.getCmdToResumeAutoStoppedTaskAt(time.Time{})
+}
+
+func (m *Model) getCmdToResumeAutoStoppedTaskAt(resumedAt time.Time) tea.Cmd {
+	if m.trackingActive || m.autoResumeTaskID < 0 {
+		return nil
+	}
+
+	taskID := m.autoResumeTaskID
+	if resumedAt.IsZero() {
+		resumedAt = m.autoResumeAt
+	}
+	cmd := m.getCmdToStartTrackingTaskAt(taskID, resumedAt)
+	if cmd != nil {
+		pauseDuration := time.Duration(0)
+		if !m.activeTLEndTS.IsZero() && !m.activeTLBeginTS.Before(m.activeTLEndTS) {
+			pauseDuration = m.activeTLBeginTS.Sub(m.activeTLEndTS)
+		}
+		m.autoResumeNoticePending = true
+		m.autoResumePauseDuration = pauseDuration
+		m.autoResumeTaskID = -1
+		m.autoResumeAt = time.Time{}
+	}
+
+	return cmd
 }
 
 func (m *Model) getCmdToDeactivateTask() tea.Cmd {

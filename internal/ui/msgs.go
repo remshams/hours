@@ -3,10 +3,17 @@ package ui
 import (
 	"time"
 
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 )
 
 type hideHelpMsg struct{}
+
+type sessionMonitorStoppedMsg struct{}
+
+type sessionStateChangedMsg struct {
+	event session.Event
+}
 
 type trackingToggledMsg struct {
 	taskID    int

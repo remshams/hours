@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 )
 
@@ -103,6 +104,7 @@ type Model struct {
 	lastView                       stateView
 	lastViewBeforeInsufficientDims stateView
 	db                             *sql.DB
+	sessionMonitor                 session.Monitor
 	style                          Style
 	timeProvider                   types.TimeProvider
 	activeTasksList                list.Model
@@ -133,6 +135,12 @@ type Model struct {
 	terminalWidth                  int
 	terminalHeight                 int
 	trackingActive                 bool
+	sessionLocked                  bool
+	autoStopTaskID                 int
+	autoResumeTaskID               int
+	autoResumeAt                   time.Time
+	autoResumeNoticePending        bool
+	autoResumePauseDuration        time.Duration
 	debug                          bool
 	frameCounter                   uint
 	logFramesCfg                   logFramesConfig
@@ -155,6 +163,7 @@ func (m Model) Init() tea.Cmd {
 		fetchTasks(m.db, true),
 		fetchTLS(m.db, nil),
 		fetchTasks(m.db, false),
+		waitForSessionEvent(m.sessionMonitor),
 	)
 }
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 )
 
@@ -454,6 +455,26 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 			cmds = append(cmds, fetchTasks(m.db, true))
 			cmds = append(cmds, fetchTasks(m.db, false))
 		}
+	case sessionStateChangedMsg:
+		m.sessionLocked = msg.event.Type == session.EventLocked
+		switch msg.event.Type {
+		case session.EventLocked:
+			if stopCmd := m.getCmdToAutoStopTrackingAt(msg.event.At); stopCmd != nil {
+				cmds = append(cmds, stopCmd)
+			}
+		case session.EventUnlocked:
+			m.autoResumeAt = m.normalizedTrackingTS(msg.event.At)
+			if resumeCmd := m.getCmdToResumeAutoStoppedTaskAt(msg.event.At); resumeCmd != nil {
+				cmds = append(cmds, resumeCmd)
+			} else {
+				m.autoResumeNoticePending = false
+				m.autoResumePauseDuration = 0
+			}
+		}
+		if waitCmd := waitForSessionEvent(m.sessionMonitor); waitCmd != nil {
+			cmds = append(cmds, waitCmd)
+		}
+	case sessionMonitorStoppedMsg:
 	case hideHelpMsg:
 		m.showHelpIndicator = false
 	}

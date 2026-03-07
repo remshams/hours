@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/dhth/hours/internal/persistence"
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 	"github.com/dhth/hours/internal/ui/theme"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +48,7 @@ func newJourneyTestHarness(t *testing.T) *journeyTestHarness {
 	// Initialize model with test time provider
 	defaultTheme := theme.Default()
 	style := NewStyle(defaultTheme)
-	m := InitialModel(db, style, timeProvider, false, logFramesConfig{})
+	m := InitialModel(db, style, timeProvider, false, logFramesConfig{}, nil)
 
 	// Set up minimum window size for proper initialization
 	msg := tea.WindowSizeMsg{
@@ -654,6 +655,91 @@ func TestJourneyFlowA_CreateTrackStopVerify(t *testing.T) {
 	assert.Equal(t, taskID, logEntry.TaskID)
 	assert.Equal(t, expectedSecs, logEntry.SecsSpent)
 	assert.Equal(t, "Completed important work", *logEntry.Comment)
+}
+
+func TestJourneyFlowAutoStopAndConditionalResume(t *testing.T) {
+	t.Run("auto-stops at the lock event timestamp and resumes on unlock", func(t *testing.T) {
+		h := newJourneyTestHarness(t)
+		defer h.cleanup()
+
+		taskID := h.insertTask("Tracked task", true)
+		h.refreshTaskList()
+		h.selectTask(0)
+		h.startTracking()
+		h.assertTrackingState(true, taskID)
+
+		lockAt := h.timeProvider.FixedTime.Add(2*time.Hour + 800*time.Millisecond)
+		unlockAt := lockAt.Add(20*time.Minute + 900*time.Millisecond)
+
+		lockCmds := h.model.handleMsg(sessionStateChangedMsg{event: session.Event{Type: session.EventLocked, At: lockAt}})
+		require.Len(t, lockCmds, 1)
+
+		lockMsg := lockCmds[0]()
+		updatedModel, _ := h.model.Update(lockMsg)
+		h.model = updatedModel.(Model)
+
+		h.assertTrackingState(false, -1)
+		assert.True(t, h.model.sessionLocked)
+		assert.Equal(t, taskID, h.model.autoResumeTaskID)
+
+		activeDetails, err := persistence.FetchActiveTaskDetails(h.db)
+		require.NoError(t, err)
+		assert.Equal(t, -1, activeDetails.TaskID)
+
+		entries, err := persistence.FetchTLEntries(h.db, true, 10)
+		require.NoError(t, err)
+		require.NotEmpty(t, entries)
+		assert.True(t, lockAt.Truncate(time.Second).Equal(entries[0].EndTS))
+
+		unlockCmds := h.model.handleMsg(sessionStateChangedMsg{event: session.Event{Type: session.EventUnlocked, At: unlockAt}})
+		require.Len(t, unlockCmds, 1)
+
+		unlockMsg := unlockCmds[0]()
+		updatedModel, _ = h.model.Update(unlockMsg)
+		h.model = updatedModel.(Model)
+
+		h.assertTrackingState(true, taskID)
+		assert.False(t, h.model.sessionLocked)
+		assert.Equal(t, "Tracking resumed after being paused automatically for 20m", h.model.message.value)
+		assert.Equal(t, uint(userMsgDefaultFrames), h.model.message.framesLeft)
+
+		activeDetails, err = persistence.FetchActiveTaskDetails(h.db)
+		require.NoError(t, err)
+		assert.Equal(t, taskID, activeDetails.TaskID)
+		assert.True(t, unlockAt.Truncate(time.Second).Equal(activeDetails.CurrentLogBeginTS))
+	})
+
+	t.Run("manual stop before lock does not resume on unlock", func(t *testing.T) {
+		h := newJourneyTestHarness(t)
+		defer h.cleanup()
+
+		taskID := h.insertTask("Tracked task", true)
+		h.refreshTaskList()
+		h.selectTask(0)
+		h.startTracking()
+		h.assertTrackingState(true, taskID)
+
+		h.timeProvider.FixedTime = h.timeProvider.FixedTime.Add(30 * time.Minute)
+		h.model.timeProvider = h.timeProvider
+		h.stopTracking()
+		h.finishTracking(h.timeProvider.FixedTime, "")
+		h.assertTrackingState(false, -1)
+
+		lockCmds := h.model.handleMsg(sessionStateChangedMsg{event: session.Event{Type: session.EventLocked, At: h.timeProvider.FixedTime.Add(5 * time.Minute)}})
+		require.Len(t, lockCmds, 0)
+
+		unlockCmds := h.model.handleMsg(sessionStateChangedMsg{event: session.Event{Type: session.EventUnlocked, At: h.timeProvider.FixedTime.Add(10 * time.Minute)}})
+		require.Len(t, unlockCmds, 0)
+
+		assert.False(t, h.model.sessionLocked)
+		assert.Equal(t, -1, h.model.autoResumeTaskID)
+		h.assertTrackingState(false, -1)
+		assert.Empty(t, h.model.message.value)
+
+		activeDetails, err := persistence.FetchActiveTaskDetails(h.db)
+		require.NoError(t, err)
+		assert.Equal(t, -1, activeDetails.TaskID)
+	})
 }
 
 // T-042: Journey Flow B - Edit log -> Move log -> Deactivate/Reactivate -> Verify

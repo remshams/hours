@@ -297,13 +297,18 @@ func TestHandleActiveTaskFetchedMsg(t *testing.T) {
 func TestHandleTrackingToggledMsg(t *testing.T) {
 	t.Run("error sets error message", func(t *testing.T) {
 		m := createTestModel()
+		m.autoResumeNoticePending = true
+		m.autoResumePauseDuration = 20 * time.Minute
 		msg := trackingToggledMsg{err: errors.New("toggle failed"), taskID: 1}
 
 		cmds := m.handleTrackingToggledMsg(msg)
 
 		assert.Nil(t, cmds)
 		assert.Equal(t, userMsgErr, m.message.kind)
+		assert.NotContains(t, m.message.value, "Tracking resumed after being paused automatically")
 		assert.False(t, m.trackingActive)
+		assert.False(t, m.autoResumeNoticePending)
+		assert.Zero(t, m.autoResumePauseDuration)
 	})
 
 	t.Run("unknown task ID on success sets error", func(t *testing.T) {
@@ -332,8 +337,50 @@ func TestHandleTrackingToggledMsg(t *testing.T) {
 		assert.Equal(t, trackingFinished, m.lastTrackingChange)
 		assert.False(t, task.TrackingActive)
 		assert.False(t, m.changesLocked)
+		assert.Equal(t, -1, m.autoResumeTaskID)
 		// updateTaskRep + fetchTLS = 2 cmds
 		require.Len(t, cmds, 2)
+	})
+
+	t.Run("auto-stopped task while locked becomes resume candidate", func(t *testing.T) {
+		m := createTestModel()
+		task := createTestTask(1, "task", true, true, m.timeProvider)
+		m.taskMap[1] = task
+		m.trackingActive = true
+		m.activeTaskID = 1
+		m.sessionLocked = true
+		m.autoStopTaskID = 1
+
+		cmds := m.handleTrackingToggledMsg(trackingToggledMsg{taskID: 1, finished: true})
+
+		assert.False(t, m.trackingActive)
+		assert.Equal(t, -1, m.activeTaskID)
+		assert.Equal(t, -1, m.autoStopTaskID)
+		assert.Equal(t, 1, m.autoResumeTaskID)
+		require.Len(t, cmds, 2)
+	})
+
+	t.Run("auto-stopped task after unlock resumes immediately", func(t *testing.T) {
+		m := createTestModel()
+		task := createTestTask(1, "task", true, true, m.timeProvider)
+		m.taskMap[1] = task
+		m.trackingActive = true
+		m.activeTaskID = 1
+		m.activeTLEndTS = referenceTime.Add(70 * time.Minute)
+		m.autoStopTaskID = 1
+		m.autoResumeAt = referenceTime.Add(90 * time.Minute)
+
+		cmds := m.handleTrackingToggledMsg(trackingToggledMsg{taskID: 1, finished: true})
+
+		assert.False(t, m.trackingActive)
+		assert.Equal(t, -1, m.autoStopTaskID)
+		assert.Equal(t, -1, m.autoResumeTaskID)
+		assert.True(t, m.changesLocked)
+		assert.Equal(t, referenceTime.Add(90*time.Minute), m.activeTLBeginTS)
+		assert.True(t, m.autoResumeNoticePending)
+		assert.Equal(t, 20*time.Minute, m.autoResumePauseDuration)
+		assert.Empty(t, m.message.value)
+		require.Len(t, cmds, 3)
 	})
 
 	t.Run("finished=false sets tracking started", func(t *testing.T) {
@@ -348,6 +395,27 @@ func TestHandleTrackingToggledMsg(t *testing.T) {
 		assert.Equal(t, 1, m.activeTaskID)
 		assert.Equal(t, trackingStarted, m.lastTrackingChange)
 		assert.True(t, task.TrackingActive)
+		assert.Nil(t, cmds)
+	})
+
+	t.Run("successful auto-resume shows transient pause notice", func(t *testing.T) {
+		m := createTestModel()
+		task := createTestTask(1, "task", true, false, m.timeProvider)
+		m.taskMap[1] = task
+		m.autoResumeNoticePending = true
+		m.autoResumePauseDuration = 20 * time.Minute
+
+		cmds := m.handleTrackingToggledMsg(trackingToggledMsg{taskID: 1, finished: false})
+
+		assert.True(t, m.trackingActive)
+		assert.Equal(t, 1, m.activeTaskID)
+		assert.Equal(t, trackingStarted, m.lastTrackingChange)
+		assert.True(t, task.TrackingActive)
+		assert.Equal(t, userMsgInfo, m.message.kind)
+		assert.Equal(t, uint(userMsgDefaultFrames), m.message.framesLeft)
+		assert.Equal(t, "Tracking resumed after being paused automatically for 20m", m.message.value)
+		assert.False(t, m.autoResumeNoticePending)
+		assert.Zero(t, m.autoResumePauseDuration)
 		assert.Nil(t, cmds)
 	})
 }

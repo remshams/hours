@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	pers "github.com/dhth/hours/internal/persistence"
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 	_ "modernc.org/sqlite" // sqlite driver
 )
@@ -178,6 +179,26 @@ func hideHelp(interval time.Duration) tea.Cmd {
 	return tea.Tick(interval, func(time.Time) tea.Msg {
 		return hideHelpMsg{}
 	})
+}
+
+func waitForSessionEvent(monitor session.Monitor) tea.Cmd {
+	if monitor == nil {
+		return nil
+	}
+
+	events := monitor.Events()
+	if events == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		event, ok := <-events
+		if !ok {
+			return sessionMonitorStoppedMsg{}
+		}
+
+		return sessionStateChangedMsg{event: event}
+	}
 }
 
 func getRecordsData(
