@@ -13,8 +13,6 @@ import (
 	"github.com/dhth/hours/internal/ui/theme"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	_ "modernc.org/sqlite"
 )
 
 // journeyTestHarness provides utilities for creating deterministic TUI journey tests
@@ -33,13 +31,7 @@ type journeyTestHarness struct {
 func newJourneyTestHarness(t *testing.T) *journeyTestHarness {
 	t.Helper()
 
-	// Create in-memory database
-	db, err := sql.Open("sqlite", ":memory:")
-	require.NoError(t, err)
-
-	// Initialize database schema
-	err = persistence.InitDB(db)
-	require.NoError(t, err)
+	db := newMigratedTestDB(t)
 
 	// Use a fixed reference time for deterministic tests
 	referenceTime := time.Date(2025, 8, 16, 9, 0, 0, 0, time.UTC)

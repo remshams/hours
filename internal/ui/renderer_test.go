@@ -11,22 +11,7 @@ import (
 	"github.com/dhth/hours/internal/ui/theme"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	_ "modernc.org/sqlite"
 )
-
-// setupTestDB creates an in-memory SQLite database for testing
-func setupTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
-	require.NoError(t, err)
-
-	// Initialize database using persistence package
-	err = persistence.InitDB(db)
-	require.NoError(t, err)
-
-	return db
-}
 
 // insertTestTask inserts a test task into the database using the persistence package
 func insertTestTask(t *testing.T, db *sql.DB, summary string, active bool) int64 {
