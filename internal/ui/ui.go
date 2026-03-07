@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 )
 
@@ -39,6 +41,14 @@ func RenderUI(db *sql.DB, style Style, timeProvider types.TimeProvider) error {
 		logFramesCfg.framesDir = framesDir
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sessionMonitor := session.NewMonitor(ctx)
+	defer func() {
+		_ = sessionMonitor.Close()
+	}()
+
 	p := tea.NewProgram(
 		InitialModel(
 			db,
@@ -46,6 +56,7 @@ func RenderUI(db *sql.DB, style Style, timeProvider types.TimeProvider) error {
 			timeProvider,
 			debug,
 			logFramesCfg,
+			sessionMonitor,
 		),
 		tea.WithAltScreen(),
 	)

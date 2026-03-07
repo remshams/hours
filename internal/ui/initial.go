@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dhth/hours/internal/session"
 	"github.com/dhth/hours/internal/types"
 )
 
@@ -39,6 +40,7 @@ func InitialModel(db *sql.DB,
 	timeProvider types.TimeProvider,
 	debug bool,
 	logFramesCfg logFramesConfig,
+	sessionMonitor session.Monitor,
 ) Model {
 	var activeTaskItems []list.Item
 	var inactiveTaskItems []list.Item
@@ -73,9 +75,10 @@ This can be used to record details about your work on this task.`
 	taskInputs[entryBeginTS].Width = textInputWidth
 
 	m := Model{
-		db:           db,
-		style:        style,
-		timeProvider: timeProvider,
+		db:             db,
+		sessionMonitor: sessionMonitor,
+		style:          style,
+		timeProvider:   timeProvider,
 		activeTasksList: list.New(activeTaskItems,
 			newItemDelegate(style.listItemTitleColor,
 				style.listItemDescColor,
@@ -97,6 +100,8 @@ This can be used to record details about your work on this task.`
 		tLInputs:          tLInputs,
 		tLCommentInput:    tLCommentInput,
 		taskInputs:        taskInputs,
+		autoStopTaskID:    -1,
+		autoResumeTaskID:  -1,
 		debug:             debug,
 		logFramesCfg:      logFramesCfg,
 	}

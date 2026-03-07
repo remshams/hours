@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -28,6 +29,17 @@ const (
 )
 
 var suggestReloadingMsg = fmt.Sprintf("Something went wrong, please restart hours; let %s know about this error via %s.", c.Author, c.RepoIssuesURL)
+
+func autoResumeNoticeMsg(pauseDuration time.Duration) string {
+	if pauseDuration < 0 {
+		pauseDuration = 0
+	}
+
+	return fmt.Sprintf(
+		"Tracking resumed after being paused automatically for %s",
+		types.HumanizeDuration(int(pauseDuration/time.Second)),
+	)
+}
 
 func (m *Model) handleRequestToGoBackOrQuit() bool {
 	var shouldQuit bool
@@ -299,10 +311,19 @@ func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
 	if msg.err != nil {
 		m.message = errMsg(msg.err.Error())
 		m.trackingActive = false
+		m.autoStopTaskID = -1
+		m.autoResumeTaskID = -1
+		m.autoResumeAt = time.Time{}
+		m.autoResumeNoticePending = false
+		m.autoResumePauseDuration = 0
 		return nil
 	}
 
 	m.changesLocked = false
+	autoStopped := msg.finished && m.autoStopTaskID == msg.taskID
+	if msg.finished {
+		m.autoStopTaskID = -1
+	}
 
 	task, ok := m.taskMap[msg.taskID]
 
@@ -314,6 +335,12 @@ func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 	switch msg.finished {
 	case true:
+		if autoStopped {
+			m.autoResumeTaskID = msg.taskID
+		} else {
+			m.autoResumeTaskID = -1
+			m.autoResumeAt = time.Time{}
+		}
 		m.lastTrackingChange = trackingFinished
 		task.TrackingActive = false
 		m.activeTLComment = nil
@@ -321,11 +348,24 @@ func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
 		m.activeTaskID = -1
 		cmds = append(cmds, updateTaskRep(m.db, task))
 		cmds = append(cmds, fetchTLS(m.db, nil))
+		if autoStopped && !m.sessionLocked {
+			if resumeCmd := m.getCmdToResumeAutoStoppedTaskAt(time.Time{}); resumeCmd != nil {
+				cmds = append(cmds, resumeCmd)
+			}
+		}
 	case false:
+		m.autoStopTaskID = -1
+		m.autoResumeTaskID = -1
+		m.autoResumeAt = time.Time{}
 		m.lastTrackingChange = trackingStarted
 		task.TrackingActive = true
 		m.trackingActive = true
 		m.activeTaskID = msg.taskID
+		if m.autoResumeNoticePending {
+			m.message = infoMsg(autoResumeNoticeMsg(m.autoResumePauseDuration))
+			m.autoResumeNoticePending = false
+			m.autoResumePauseDuration = 0
+		}
 	}
 
 	task.UpdateListTitle()
@@ -338,6 +378,11 @@ func (m *Model) handleActiveTLSwitchedMsg(msg activeTLSwitchedMsg) tea.Cmd {
 		m.message = errMsg(msg.err.Error())
 		return nil
 	}
+	m.autoStopTaskID = -1
+	m.autoResumeTaskID = -1
+	m.autoResumeAt = time.Time{}
+	m.autoResumeNoticePending = false
+	m.autoResumePauseDuration = 0
 
 	lastActiveTask, ok := m.taskMap[msg.lastActiveTaskID]
 
@@ -399,6 +444,11 @@ func (m *Model) handleActiveTLDeletedMsg(msg activeTaskLogDeletedMsg) {
 	m.trackingActive = false
 	m.activeTLComment = nil
 	m.activeTaskID = -1
+	m.autoStopTaskID = -1
+	m.autoResumeTaskID = -1
+	m.autoResumeAt = time.Time{}
+	m.autoResumeNoticePending = false
+	m.autoResumePauseDuration = 0
 }
 
 // selectedActiveTask returns the currently selected item in the active tasks list cast to *types.Task.

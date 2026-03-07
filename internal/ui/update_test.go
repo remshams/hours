@@ -126,6 +126,30 @@ func TestEscapeFromHelpViewReturnsToLastView(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
+func TestUpdateDecrementsTransientMessageFramesAndClearsValue(t *testing.T) {
+	// GIVEN
+	m := createTestModel()
+	m.message = infoMsg("Tracking resumed after being paused automatically for 20m")
+
+	// WHEN
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 96, Height: minHeightNeeded})
+	model := updated.(Model)
+	assert.Equal(t, uint(2), model.message.framesLeft)
+	assert.Equal(t, "Tracking resumed after being paused automatically for 20m", model.message.value)
+
+	updated, _ = model.Update(tea.WindowSizeMsg{Width: 96, Height: minHeightNeeded})
+	model = updated.(Model)
+	assert.Equal(t, uint(1), model.message.framesLeft)
+	assert.Equal(t, "Tracking resumed after being paused automatically for 20m", model.message.value)
+
+	updated, _ = model.Update(tea.WindowSizeMsg{Width: 96, Height: minHeightNeeded})
+	model = updated.(Model)
+
+	// THEN
+	assert.Zero(t, model.message.framesLeft)
+	assert.Empty(t, model.message.value)
+}
+
 func TestEscapeFromTaskLogViewReturnsToTaskListView(t *testing.T) {
 	// GIVEN
 	m := createTestModel()
