@@ -406,6 +406,9 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 			m.message = infoMsg(fmt.Sprintf("Archived %d tasks", msg.count))
 			cmds = append(cmds, fetchTasks(m.db, true))
 			cmds = append(cmds, fetchTasks(m.db, false))
+			if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+				cmds = append(cmds, syncCmd)
+			}
 		}
 	case taskUpdatedMsg:
 		if msg.err != nil {

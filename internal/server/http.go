@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	pers "github.com/dhth/hours/internal/persistence"
 	syncpkg "github.com/dhth/hours/internal/sync"
 )
+
+var encodePayload = syncpkg.EncodePayload
 
 func NewHandler(db *sql.DB) http.Handler {
 	mux := http.NewServeMux()
@@ -44,10 +47,14 @@ func NewHandler(db *sql.DB) http.Handler {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		if err := syncpkg.EncodePayload(w, response); err != nil {
+		var responseBody bytes.Buffer
+		if err := encodePayload(&responseBody, response); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(responseBody.Bytes())
 	})
 
 	return mux

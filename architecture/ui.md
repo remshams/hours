@@ -11,7 +11,7 @@ internals. All client data is still persisted in a local SQLite file.
 
 ### Package Dependency Tree
 
-```
+```text
 cmd/hours/main        → cmd             → ui → persistence → types → utils
                                          → types
                                          → common

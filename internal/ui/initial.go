@@ -76,7 +76,7 @@ This can be used to record details about your work on this task.`
 	taskInputs[summaryField].Placeholder = "task summary goes here"
 	taskInputs[summaryField].Focus()
 	taskInputs[summaryField].CharLimit = 100
-	taskInputs[entryBeginTS].Width = textInputWidth
+	taskInputs[summaryField].Width = textInputWidth
 
 	syncInputs := make([]textinput.Model, 3)
 	syncInputs[syncEnabledField] = textinput.New()

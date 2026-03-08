@@ -148,6 +148,10 @@ hours-server --dbpath ~/hours-sync-server.db --listen 127.0.0.1:8787
 The sync server is intentionally lightweight: it only serves the sync API, and
 it uses SQLite on the server side as well.
 
+> Warning: `hours-server` does not provide built-in authentication or TLS. If
+> you expose it beyond localhost, put it behind a trusted network boundary,
+> reverse proxy, VPN, or similar protection.
+
 #### Deploying to a Raspberry Pi or other server host
 
 A Raspberry Pi or similar always-on machine only needs the `hours-server`
@@ -409,7 +413,7 @@ Here's a sampling of custom themes in action.
 📋 TUI Reference Manual
 ---
 
-`hours` has 7 views:
+`hours` has 8 views:
 
   - Tasks List View                       Shows active tasks
   - Task Management View                  Shows a form to create/update tasks

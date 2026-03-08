@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -13,7 +15,8 @@ func TestNewRootCommand_DefaultValues(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "hours-server", cmd.Use)
-	assert.Equal(t, "Run the hours HTTP sync server", cmd.Short)
+	assert.Contains(t, cmd.Short, "HTTP sync server")
+	assert.Contains(t, cmd.Long, "does not start the TUI client")
 
 	dbPath, err := cmd.Flags().GetString("dbpath")
 	require.NoError(t, err)
@@ -32,4 +35,30 @@ func TestNewRootCommand_InvalidDBExtension(t *testing.T) {
 
 	err = cmd.RunE(cmd, nil)
 	assert.ErrorIs(t, err, ErrDBFileExtIncorrect)
+}
+
+func TestNewRootCommand_AllowsHelpAndFlagParsingWithoutHomeDir(t *testing.T) {
+	oldLookupUserHomeDir := lookupUserHomeDir
+	lookupUserHomeDir = func() (string, error) {
+		return "", errors.New("home directory unavailable")
+	}
+	t.Cleanup(func() {
+		lookupUserHomeDir = oldLookupUserHomeDir
+	})
+
+	cmd, err := NewRootCommand()
+	require.NoError(t, err)
+
+	dbPath, err := cmd.Flags().GetString("dbpath")
+	require.NoError(t, err)
+	assert.Equal(t, defaultDBName, dbPath)
+
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+	cmd.SetArgs([]string{"--dbpath", filepath.Join(t.TempDir(), "server.db"), "--help"})
+
+	require.NoError(t, cmd.Execute())
+	assert.Contains(t, output.String(), "hours-server")
+	assert.Contains(t, output.String(), "--dbpath")
 }
