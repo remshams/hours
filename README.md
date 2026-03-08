@@ -29,20 +29,77 @@ precisely fit these needs, so I decided to build one for myself.
 💾 Install
 ---
 
-**homebrew**:
+**homebrew (client binary)**:
 
 ```sh
 brew install dhth/tap/hours
 ```
 
-**go**:
+This installs the `hours` client binary.
+
+**go (client binary)**:
 
 ```sh
 go install github.com/dhth/hours@latest
 ```
 
-Or get the binaries directly from a
-[release](https://github.com/dhth/hours/releases).
+**go (dedicated sync server binary)**:
+
+```sh
+go install github.com/dhth/hours/cmd/hours-server@latest
+```
+
+Use `hours` on laptops/workstations where you want the TUI and reporting
+commands. Use `hours-server` on a Raspberry Pi or other always-on server host
+that only needs to serve sync traffic.
+
+### Build from source (single `go.mod`, two binaries)
+
+This repository stays as a single Go module with two explicit entrypoints:
+
+- `./cmd/hours` builds the client binary `hours`
+- `./cmd/hours-server` builds the dedicated sync-server binary `hours-server`
+
+If you are newer to Go, this is a normal mono-repo layout: one `go.mod`, shared
+code in `internal/*`, and one binary per `cmd/*` entrypoint.
+
+```sh
+go build ./cmd/hours
+go build ./cmd/hours-server
+
+# or install both into $(go env GOPATH)/bin
+go install ./cmd/hours
+go install ./cmd/hours-server
+```
+
+The legacy root `go build .` / `go install .` path still builds the client
+binary, but using the explicit `cmd/...` targets keeps the client/server split
+obvious for contributors.
+
+### Validation from a checkout
+
+Recommended final validation for the split binaries:
+
+```sh
+go build -v ./...
+go test -v ./...
+
+mkdir -p ./dist
+go build -o ./dist/hours ./cmd/hours
+go build -o ./dist/hours-server ./cmd/hours-server
+
+./dist/hours --help
+./dist/hours-server --help
+
+(
+  cd tests
+  HOURS_BIN="$(pwd)/../dist/hours" ./test.sh
+)
+```
+
+`tests/test.sh` remains the live validation script for the client binary. Keep
+using the `HOURS_BIN` override when you want it to exercise a freshly built
+`hours` binary instead of one already on your `PATH`.
 
 ⚡️ Usage
 ---
@@ -72,6 +129,90 @@ Open the TUI by simply running `hours`. The TUI lets you do the following:
 Besides a TUI, `hours` also offers reports, statistics, and logs based on the
 time tracking you do. These can be viewed using the subcommands `report`,
 `stats`, and `log` respectively.
+
+### Offline-First Sync
+
+`hours` now supports an optional local-first sync workflow. Each instance keeps
+using its own local SQLite database as the source of truth for day-to-day work,
+and sync is best-effort whenever the shared server is reachable.
+
+#### Start the lightweight sync server
+
+For new server deployments, run the dedicated `hours-server` binary against a
+SQLite database that will act as the shared store:
+
+```bash
+hours-server --dbpath ~/hours-sync-server.db --listen 127.0.0.1:8787
+```
+
+The sync server is intentionally lightweight: it only serves the sync API, and
+it uses SQLite on the server side as well.
+
+#### Deploying to a Raspberry Pi or other server host
+
+A Raspberry Pi or similar always-on machine only needs the `hours-server`
+binary; it does not need the TUI client.
+
+1. Put `hours-server` on the server host.
+2. Give it a dedicated server-side SQLite file such as
+   `~/hours-sync-server.db`.
+3. Run it on an address your clients can reach, for example:
+
+   ```bash
+   hours-server --dbpath ~/hours-sync-server.db --listen 0.0.0.0:8787
+   ```
+
+4. Keep using the `hours` client on each laptop/workstation and point **Sync
+   Settings** at `http://<server-host>:8787`.
+
+If you are building directly on that host from this mono-repo checkout:
+
+```bash
+go build -o ~/bin/hours-server ./cmd/hours-server
+~/bin/hours-server --dbpath ~/hours-sync-server.db --listen 0.0.0.0:8787
+```
+
+#### Supported bootstrap workflow
+
+v1 assumes exactly one existing local database is chosen as the initial seed.
+That seeded instance should sync first so the shared server database is
+bootstrapped from a single canonical history.
+
+The supported setup looks like this:
+
+1. Pick one existing `hours` database as the seed instance.
+2. Start `hours-server` with a dedicated server-side `.db` file.
+3. In the seed instance, open the TUI, press `4` for **Sync Settings**, enable
+   sync, set the server URL (for example `http://127.0.0.1:8787`), choose an
+   interval such as `15m`, and save with `<ctrl+s>`.
+4. Let that seed instance sync once to populate the shared server database.
+5. For every additional device or installation, start from a fresh/empty local
+   `hours` database, open **Sync Settings**, point it at the same server, and
+   save. Its first successful sync will pull down the shared history.
+
+#### What to expect in normal use
+
+- `hours` stays usable when the sync server is unavailable; local reads and
+  writes continue against the local SQLite database.
+- When sync is enabled, `hours` attempts to sync after relevant local writes and
+  also on the configured background interval while tracking is active.
+- Once connectivity returns, later sync attempts exchange pending task and task
+  log changes with the server.
+
+#### Conflict policy
+
+Conflicts use a deterministic **last-write-wins** policy based on the newest
+record update timestamp. v1 does not include an interactive merge UI.
+
+#### Known limitations
+
+- v1 supports bootstrapping the shared history from exactly one pre-existing
+  local database. It does **not** merge multiple already-populated local
+  databases into one combined history.
+- Only tasks and task-log data are synced. Themes and other local configuration
+  remain local-only.
+- The built-in sync server is a lightweight HTTP + SQLite service; deployment
+  automation and higher-level server management are out of scope for v1.
 
 ### Reports
 
@@ -268,13 +409,14 @@ Here's a sampling of custom themes in action.
 📋 TUI Reference Manual
 ---
 
-`hours` has 6 views:
+`hours` has 7 views:
 
   - Tasks List View                       Shows active tasks
   - Task Management View                  Shows a form to create/update tasks
   - Task Logs List View                   Shows your task logs
   - Task Log Details View                 Shows details for a task log
   - Inactive Tasks List View              Shows inactive tasks
+  - Sync Settings View                    Shows a form to configure sync settings
   - Task Log Entry View                   Shows a form to save/update a task log entry
   - Help View
 
@@ -287,6 +429,7 @@ Here's a sampling of custom themes in action.
 | `1`           | Switch to Tasks List View          |
 | `2`           | Switch to Task Logs List View      |
 | `3`           | Switch to Inactive Tasks List View |
+| `4`           | Switch to Sync Settings View       |
 | `<tab>`       | Go to next view/form entry         |
 | `<shift+tab>` | Go to previous view/form entry     |
 | `q`/`<esc>`   | Go back or quit                    |
@@ -339,6 +482,18 @@ Here's a sampling of custom themes in action.
 | Shortcut   | Action        |
 |------------|---------------|
 | `<ctrl+d>` | Activate task |
+
+#### Sync Settings View
+
+| Shortcut           | Action                                       |
+|--------------------|----------------------------------------------|
+| `enter`/`<ctrl+s>` | Save sync settings                           |
+
+Field help:
+
+- `enabled` accepts `on/off`, `true/false`, `yes/no`, and `1/0`
+- `server URL` accepts `http://...` or `https://...`
+- `sync interval` accepts Go-style durations like `15m` or `1h`
 
 #### Task Log Entry View
 
