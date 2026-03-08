@@ -124,6 +124,11 @@ func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cm
 		switch m.activeView {
 		case taskInputView:
 			updateCmd = m.getCmdToCreateOrUpdateTask()
+		case syncSettingsView:
+			if updateCmd = m.saveSyncSettings(); updateCmd != nil {
+				return true, []tea.Cmd{updateCmd}
+			}
+			return true, nil
 		case editActiveTLView:
 			updateCmd = m.getCmdToUpdateActiveTL()
 		case finishActiveTLView:
@@ -141,7 +146,7 @@ func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cm
 
 	case escape:
 		switch m.activeView {
-		case taskInputView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
+		case taskInputView, syncSettingsView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
 			m.handleEscapeInForms()
 			return true, nil
 		}
@@ -231,6 +236,12 @@ func (m *Model) updateInputComponents(msg tea.Msg) (cmds []tea.Cmd, handled bool
 			cmds = append(cmds, cmd)
 		}
 		return cmds, true
+	case syncSettingsView:
+		for i := range m.syncInputs {
+			m.syncInputs[i], cmd = m.syncInputs[i].Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		return cmds, true
 	case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
 		for i := range m.tLInputs {
 			m.tLInputs[i], cmd = m.tLInputs[i].Update(msg)
@@ -263,6 +274,10 @@ func (m *Model) handleListKeys(keyMsg tea.KeyMsg) []tea.Cmd {
 	case "3":
 		if m.activeView != inactiveTaskListView {
 			m.activeView = inactiveTaskListView
+		}
+	case "4":
+		if m.activeView != syncSettingsView {
+			m.handleRequestToOpenSyncSettings()
 		}
 	case "ctrl+r":
 		if reloadCmd := m.getCmdToReloadData(); reloadCmd != nil {
@@ -380,6 +395,9 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 			m.message = errMsg(fmt.Sprintf("Error creating task: %s", msg.err))
 		} else {
 			cmds = append(cmds, fetchTasks(m.db, true))
+			if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+				cmds = append(cmds, syncCmd)
+			}
 		}
 	case staleTasksArchivedMsg:
 		if msg.err != nil {
@@ -395,6 +413,9 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 		} else {
 			msg.tsk.Summary = msg.summary
 			msg.tsk.UpdateListTitle()
+			if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+				cmds = append(cmds, syncCmd)
+			}
 		}
 	case tasksFetchedMsg:
 		if handleCmd := m.handleTasksFetchedMsg(msg); handleCmd != nil {
@@ -406,6 +427,9 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 		} else {
 			m.activeTLBeginTS = msg.beginTS
 			m.activeTLComment = msg.comment
+			if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+				cmds = append(cmds, syncCmd)
+			}
 		}
 	case manualTLInsertedMsg:
 		if handleCmds := m.handleManualTLInsertedMsg(msg); handleCmds != nil {
@@ -418,14 +442,16 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 	case tLsFetchedMsg:
 		m.handleTLSFetchedMsg(msg)
 	case activeTaskFetchedMsg:
-		m.handleActiveTaskFetchedMsg(msg)
+		if cmd := m.handleActiveTaskFetchedMsg(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	case trackingToggledMsg:
 		if updateCmds := m.handleTrackingToggledMsg(msg); updateCmds != nil {
 			cmds = append(cmds, updateCmds...)
 		}
 	case activeTLSwitchedMsg:
-		if updateCmd := m.handleActiveTLSwitchedMsg(msg); updateCmd != nil {
-			cmds = append(cmds, updateCmd)
+		if updateCmds := m.handleActiveTLSwitchedMsg(msg); updateCmds != nil {
+			cmds = append(cmds, updateCmds...)
 		}
 	case taskRepUpdatedMsg:
 		if msg.err != nil {
@@ -443,6 +469,9 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 		} else {
 			cmds = append(cmds, fetchTLS(m.db, nil))
 			cmds = append(cmds, fetchTasks(m.db, true))
+			if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+				cmds = append(cmds, syncCmd)
+			}
 		}
 		m.activeView = taskLogView
 		m.targetTasksList.ResetFilter()
@@ -454,6 +483,9 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 		} else {
 			cmds = append(cmds, fetchTasks(m.db, true))
 			cmds = append(cmds, fetchTasks(m.db, false))
+			if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+				cmds = append(cmds, syncCmd)
+			}
 		}
 	case sessionStateChangedMsg:
 		m.sessionLocked = msg.event.Type == session.EventLocked
@@ -475,6 +507,15 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 			cmds = append(cmds, waitCmd)
 		}
 	case sessionMonitorStoppedMsg:
+	case syncTickMsg:
+		if syncCmd := m.startSyncCmd(); syncCmd != nil {
+			cmds = append(cmds, syncCmd)
+		}
+		if tickCmd := m.scheduleBackgroundSyncCmd(); tickCmd != nil {
+			cmds = append(cmds, tickCmd)
+		}
+	case syncCompletedMsg:
+		cmds = append(cmds, m.handleSyncCompletedMsg(msg)...)
 	case hideHelpMsg:
 		m.showHelpIndicator = false
 	}

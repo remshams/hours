@@ -27,6 +27,7 @@ const (
 	taskLogView                                 // View showing task log entries
 	taskLogDetailsView                          // Detailed view of a specific task log entry
 	inactiveTaskListView                        // List of inactive tasks
+	syncSettingsView                            // Form to configure sync settings
 	editActiveTLView                            // Form to edit currently active task log (ie, begin TS)
 	finishActiveTLView                          // Form to finish active task log
 	manualTasklogEntryView                      // Form to manually create a new task log entry
@@ -48,6 +49,14 @@ type taskInputField uint
 
 const (
 	summaryField taskInputField = iota
+)
+
+type syncInputField uint
+
+const (
+	syncEnabledField syncInputField = iota
+	syncServerURLField
+	syncIntervalField
 )
 
 type tLTrackingFormField uint
@@ -120,6 +129,8 @@ type Model struct {
 	trackingFocussedField          tLTrackingFormField
 	tLCommentInput                 textarea.Model
 	taskInputs                     []textinput.Model
+	syncInputs                     []textinput.Model
+	syncInputFocussedField         syncInputField
 	taskMgmtContext                taskMgmtContext
 	taskInputFocussedField         taskInputField
 	helpVP                         viewport.Model
@@ -144,6 +155,16 @@ type Model struct {
 	debug                          bool
 	frameCounter                   uint
 	logFramesCfg                   logFramesConfig
+	syncConfig                     SyncConfig
+	syncConfigPath                 string
+	syncConfigStatusErr            string
+	syncInFlight                   bool
+	syncDirty                      bool
+	syncLastAttemptAt              time.Time
+	syncLastSuccessAt              time.Time
+	syncLastError                  string
+	runSync                        syncRunFunc
+	saveSyncConfig                 func(SyncConfig) error
 	targetTasksList                list.Model
 	moveTLID                       int
 	moveOldTaskID                  int

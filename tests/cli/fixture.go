@@ -16,6 +16,11 @@ type Fixture struct {
 	binPath string
 }
 
+const (
+	clientBuildTarget = "github.com/dhth/hours/cmd/hours"
+	serverBuildTarget = "github.com/dhth/hours/cmd/hours-server"
+)
+
 type HoursCmd struct {
 	args  []string
 	useDB bool
@@ -42,14 +47,22 @@ func (c *HoursCmd) UseDB() {
 }
 
 func NewFixture() (Fixture, error) {
+	return buildFixture("hours", clientBuildTarget)
+}
+
+func NewServerFixture() (Fixture, error) {
+	return buildFixture("hours-server", serverBuildTarget)
+}
+
+func buildFixture(binaryName string, buildTarget string) (Fixture, error) {
 	var zero Fixture
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return zero, fmt.Errorf("couldn't create temporary directory: %s", err.Error())
 	}
 
-	binPath := filepath.Join(tempDir, "hours")
-	buildArgs := []string{"build", "-o", binPath, "../../.."}
+	binPath := filepath.Join(tempDir, binaryName)
+	buildArgs := []string{"build", "-o", binPath, buildTarget}
 
 	buildCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -79,6 +92,14 @@ func (f Fixture) Cleanup() error {
 	}
 
 	return nil
+}
+
+func (f Fixture) TempDir() string {
+	return f.tempDir
+}
+
+func (f Fixture) BinPath() string {
+	return f.binPath
 }
 
 func (f Fixture) RunCmd(cmd HoursCmd) (string, error) {

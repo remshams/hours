@@ -2,6 +2,9 @@ package persistence
 
 import (
 	"database/sql"
+
+	// Register the SQLite driver for binaries that only depend on persistence.
+	_ "modernc.org/sqlite"
 )
 
 func GetDB(dbpath string) (*sql.DB, error) {

@@ -60,6 +60,36 @@ type TaskReportEntry struct {
 	SecsSpent   int
 }
 
+// SyncTaskRecord is the shared persistence projection for syncing task rows.
+// It keeps the local integer key for local joins while exposing the durable
+// sync identifier and canonical timestamps used by future sync code.
+type SyncTaskRecord struct {
+	LocalID   int
+	SyncID    string
+	Summary   string
+	SecsSpent int
+	Active    bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// SyncTaskLogRecord is the shared persistence projection for syncing task_log
+// rows. TaskSyncID provides a stable parent reference that can be shared across
+// different SQLite instances without relying on local integer IDs.
+type SyncTaskLogRecord struct {
+	LocalID     int
+	SyncID      string
+	TaskLocalID int
+	TaskSyncID  string
+	BeginTS     time.Time
+	EndTS       *time.Time
+	SecsSpent   int
+	Comment     *string
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type TimeProvider interface {
 	Now() time.Time
 }

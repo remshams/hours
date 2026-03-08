@@ -41,6 +41,10 @@ func InitialModel(db *sql.DB,
 	debug bool,
 	logFramesCfg logFramesConfig,
 	sessionMonitor session.Monitor,
+	syncConfig SyncConfig,
+	syncConfigStatusErr string,
+	syncConfigPath string,
+	saveSyncConfig func(SyncConfig) error,
 ) Model {
 	var activeTaskItems []list.Item
 	var inactiveTaskItems []list.Item
@@ -74,6 +78,22 @@ This can be used to record details about your work on this task.`
 	taskInputs[summaryField].CharLimit = 100
 	taskInputs[entryBeginTS].Width = textInputWidth
 
+	syncInputs := make([]textinput.Model, 3)
+	syncInputs[syncEnabledField] = textinput.New()
+	syncInputs[syncEnabledField].Placeholder = "on/off"
+	syncInputs[syncEnabledField].CharLimit = 5
+	syncInputs[syncEnabledField].Width = 12
+
+	syncInputs[syncServerURLField] = textinput.New()
+	syncInputs[syncServerURLField].Placeholder = "https://sync.example.com"
+	syncInputs[syncServerURLField].CharLimit = 200
+	syncInputs[syncServerURLField].Width = textInputWidth
+
+	syncInputs[syncIntervalField] = textinput.New()
+	syncInputs[syncIntervalField].Placeholder = defaultSyncInterval
+	syncInputs[syncIntervalField].CharLimit = 20
+	syncInputs[syncIntervalField].Width = 24
+
 	m := Model{
 		db:             db,
 		sessionMonitor: sessionMonitor,
@@ -96,15 +116,21 @@ This can be used to record details about your work on this task.`
 				style.listItemDescColor,
 				lipgloss.Color(style.theme.TaskLogList),
 			), listWidth, 0),
-		showHelpIndicator: true,
-		tLInputs:          tLInputs,
-		tLCommentInput:    tLCommentInput,
-		taskInputs:        taskInputs,
-		autoStopTaskID:    -1,
-		autoResumeTaskID:  -1,
-		debug:             debug,
-		logFramesCfg:      logFramesCfg,
+		showHelpIndicator:   true,
+		tLInputs:            tLInputs,
+		tLCommentInput:      tLCommentInput,
+		taskInputs:          taskInputs,
+		syncInputs:          syncInputs,
+		autoStopTaskID:      -1,
+		autoResumeTaskID:    -1,
+		debug:               debug,
+		logFramesCfg:        logFramesCfg,
+		syncConfig:          syncConfig,
+		syncConfigPath:      syncConfigPath,
+		syncConfigStatusErr: syncConfigStatusErr,
+		saveSyncConfig:      saveSyncConfig,
 	}
+	m.setSyncInputs(syncConfig)
 	titleFG := lipgloss.Color(style.theme.TitleForeground)
 	setupList(&m.activeTasksList, "Tasks", "task", "tasks", lipgloss.Color(style.theme.ActiveTasks), titleFG, true)
 	setupList(&m.taskLogList, "Task Logs (last 50)", "entry", "entries", lipgloss.Color(style.theme.TaskLogList), titleFG, false)

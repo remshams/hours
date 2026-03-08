@@ -20,15 +20,18 @@ func getHelpText(style Style) string {
 %s
 %s
 %s
+	%s
+	%s
 %s`,
 		style.helpPrimary.Render("\"hours\" Reference Manual"),
 		style.helpSecondary.Render(`
-"hours" has 6 views:
+"hours" has 8 views:
   - Tasks List View                       Shows active tasks
   - Task Management View                  Shows a form to create/update tasks
   - Task Logs List View                   Shows your task logs
   - Task Log Details View                 Shows details for a task log
   - Inactive Tasks List View              Shows inactive tasks
+  - Sync Settings View                    Shows a form to configure sync settings
   - Task Log Entry View                   Shows a form to save/update a task log entry
   - Help View (this one)
 `),
@@ -38,6 +41,7 @@ func getHelpText(style Style) string {
   1                                       Switch to Tasks List View
   2                                       Switch to Task Logs List View
   3                                       Switch to Inactive Tasks List View
+  4                                       Switch to Sync Settings View
   <tab>                                   Go to next view/form entry
   <shift+tab>                             Go to previous view/form entry
   q/<esc>                                 Go back or quit
@@ -91,6 +95,13 @@ func getHelpText(style Style) string {
 		style.helpSecondary.Render(`
   c                                       Copy task summary to clipboard
   <ctrl+d>                                Activate task
+`),
+		style.helpPrimary.Render("Sync Settings View"),
+		style.helpSecondary.Render(`
+  enter/<ctrl+s>                          Save sync settings
+  enabled accepts                         on/off, true/false, yes/no, 1/0
+  server URL accepts                      http://... or https://...
+  sync interval accepts                   Go-style durations like 15m or 1h
 `),
 		style.helpPrimary.Render("Task Log Entry View"),
 		style.helpSecondary.Render(`
