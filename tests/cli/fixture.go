@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"time"
 )
 
@@ -93,12 +93,21 @@ output:
 }
 
 func repoRootDir() (string, error) {
-	_, currentFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("couldn't determine fixture source path")
+	gomodCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c := exec.CommandContext(gomodCtx, "go", "env", "GOMOD")
+	gomodOutput, err := c.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("couldn't resolve repository root via go env GOMOD: %w\noutput:\n%s", err, gomodOutput)
 	}
 
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	gomodPath := filepath.Clean(strings.TrimSpace(string(gomodOutput)))
+	if gomodPath == "" || gomodPath == os.DevNull {
+		return "", errors.New("couldn't resolve repository root via go env GOMOD")
+	}
+
+	repoRoot := filepath.Dir(gomodPath)
 	if _, err := os.Stat(filepath.Join(repoRoot, "go.mod")); err != nil {
 		return "", fmt.Errorf("couldn't resolve repository root from fixture helper: %w", err)
 	}
