@@ -1,7 +1,7 @@
 dist
 cosign.key
 cosign.pub
-hours
+/hours
 debug.log
 .quickrun
 justfile
