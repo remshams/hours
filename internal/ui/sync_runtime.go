@@ -100,11 +100,3 @@ func (m *Model) handleSyncCompletedMsg(msg syncCompletedMsg) []tea.Cmd {
 
 	return cmds
 }
-
-func formatSyncTimestamp(ts time.Time) string {
-	if ts.IsZero() {
-		return "unknown time"
-	}
-
-	return ts.Local().Format("2006-01-02 15:04:05")
-}

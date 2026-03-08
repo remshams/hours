@@ -94,6 +94,21 @@ func TestNavigationKey3DoesNothingWhenAlreadyOnInactiveTaskListView(t *testing.T
 	assert.Equal(t, inactiveTaskListView, model.activeView)
 }
 
+func TestNavigationKey4DoesNothing(t *testing.T) {
+	// GIVEN
+	m := createTestModel()
+	m.activeView = taskListView
+
+	// WHEN
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}}
+	newM, _ := m.Update(msg)
+	model := newM.(Model)
+
+	// THEN
+	assert.Equal(t, taskListView, model.activeView)
+	assert.Equal(t, taskListView, model.lastView)
+}
+
 func TestHelpKeyShowsHelpView(t *testing.T) {
 	// GIVEN
 	m := createTestModel()

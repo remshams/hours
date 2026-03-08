@@ -124,11 +124,6 @@ func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cm
 		switch m.activeView {
 		case taskInputView:
 			updateCmd = m.getCmdToCreateOrUpdateTask()
-		case syncSettingsView:
-			if updateCmd = m.saveSyncSettings(); updateCmd != nil {
-				return true, []tea.Cmd{updateCmd}
-			}
-			return true, nil
 		case editActiveTLView:
 			updateCmd = m.getCmdToUpdateActiveTL()
 		case finishActiveTLView:
@@ -146,7 +141,7 @@ func (m *Model) handleFormKeys(keyMsg tea.KeyMsg) (exitEarly bool, cmds []tea.Cm
 
 	case escape:
 		switch m.activeView {
-		case taskInputView, syncSettingsView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
+		case taskInputView, editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView, moveTaskLogView:
 			m.handleEscapeInForms()
 			return true, nil
 		}
@@ -236,12 +231,6 @@ func (m *Model) updateInputComponents(msg tea.Msg) (cmds []tea.Cmd, handled bool
 			cmds = append(cmds, cmd)
 		}
 		return cmds, true
-	case syncSettingsView:
-		for i := range m.syncInputs {
-			m.syncInputs[i], cmd = m.syncInputs[i].Update(msg)
-			cmds = append(cmds, cmd)
-		}
-		return cmds, true
 	case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
 		for i := range m.tLInputs {
 			m.tLInputs[i], cmd = m.tLInputs[i].Update(msg)
@@ -274,10 +263,6 @@ func (m *Model) handleListKeys(keyMsg tea.KeyMsg) []tea.Cmd {
 	case "3":
 		if m.activeView != inactiveTaskListView {
 			m.activeView = inactiveTaskListView
-		}
-	case "4":
-		if m.activeView != syncSettingsView {
-			m.handleRequestToOpenSyncSettings()
 		}
 	case "ctrl+r":
 		if reloadCmd := m.getCmdToReloadData(); reloadCmd != nil {

@@ -129,19 +129,6 @@ func TestHandleSyncCompletedMsgRetriesDirtySyncAfterFailure(t *testing.T) {
 	assert.False(t, m.syncDirty)
 }
 
-func TestSyncStatusForDisplayShowsRuntimeFailure(t *testing.T) {
-	m := createTestModel()
-	m.syncConfig = SyncConfig{Enabled: true, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval}
-	m.setSyncInputs(m.syncConfig)
-	m.syncLastAttemptAt = referenceTime
-	m.syncLastError = "connection refused"
-
-	title, detail, isErr := m.syncStatusForDisplay()
-	assert.Equal(t, "Last sync failed", title)
-	assert.Contains(t, detail, "connection refused")
-	assert.True(t, isErr)
-}
-
 func setupSyncRuntimeTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
