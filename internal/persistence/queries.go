@@ -379,6 +379,7 @@ WHERE tl.active=true;
 
 func InsertTask(db *sql.DB, summary string) (int, error) {
 	return runInTxAndReturnID(db, func(tx *sql.Tx) (int, error) {
+		now := time.Now().UTC()
 		syncID, err := newSyncID()
 		if err != nil {
 			return -1, fmt.Errorf("%w: %s", ErrCouldntGenerateSyncID, err.Error())
@@ -393,7 +394,6 @@ func InsertTask(db *sql.DB, summary string) (int, error) {
 		}
 		defer stmt.Close()
 
-		now := time.Now().UTC()
 		res, err := stmt.Exec(summary, syncID, now, now)
 		if err != nil {
 			return -1, err
