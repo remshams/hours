@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -137,7 +138,19 @@ func TestSyncSettingsViewShowsStatusAndPath(t *testing.T) {
 	m.syncConfigPath = "testdata/sync.json"
 
 	view := stripANSI(m.View())
+	lines := strings.Split(view, "\n")
+	nonEmptyLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			nonEmptyLines = append(nonEmptyLines, trimmed)
+		}
+	}
 
+	assert.NotContains(t, view, `\n`)
+	assert.Contains(t, nonEmptyLines, "Sync Settings")
+	assert.Contains(t, nonEmptyLines, "Configure sync behavior for hours.")
+	assert.Contains(t, nonEmptyLines, "Enabled* (on/off)")
 	assert.Contains(t, view, "Sync Settings")
 	assert.Contains(t, view, "Will sync with https://sync.example.com every 15m.")
 	assert.Contains(t, view, "Settings file: testdata/sync.json")

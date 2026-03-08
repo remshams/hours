@@ -146,7 +146,29 @@ func (m Model) View() string {
 		}
 
 		content = fmt.Sprintf(
-			`\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n\n  %s\n`,
+			`
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+
+	  %s
+	`,
 			m.style.taskEntryHeading.Render("Sync Settings"),
 			m.style.formContext.Render("Configure sync behavior for hours."),
 			m.style.formHelp.Render(formHelp),
