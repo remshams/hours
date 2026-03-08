@@ -1,16 +1,24 @@
 # Architecture
 
-## 1. Full Application
+## 1. Application Binaries
 
-The application is a single Go binary with two modes: an **interactive TUI** (default) and **non-interactive CLI subcommands** (`report`, `log`, `stats`, `active`). All data is persisted in a local SQLite file.
+This repository is a single Go module (`go.mod`) that currently ships two
+binaries: `hours` for the interactive TUI plus CLI reports, and `hours-server`
+for the dedicated HTTP sync server.
+
+The rest of this document focuses on the `hours` client application and its UI
+internals. All client data is still persisted in a local SQLite file.
 
 ### Package Dependency Tree
 
 ```
-main → cmd → ui → persistence → types → utils
-                → types
-             → common
-             → ui/theme
+cmd/hours/main        → cmd             → ui → persistence → types → utils
+                                         → types
+                                         → common
+                                         → ui/theme
+
+cmd/hours-server/main → internal/server → persistence → types → utils
+                                         → sync
 ```
 
 No circular dependencies. `utils` and `common` are leaves with no internal deps.
