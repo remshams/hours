@@ -385,8 +385,8 @@ func InsertTask(db *sql.DB, summary string) (int, error) {
 		}
 
 		stmt, err := tx.Prepare(`
-	INSERT into task (summary, active, created_at, updated_at, sync_id)
-	VALUES (?, true, ?, ?, ?);
+		INSERT into task (summary, active, sync_id, created_at, updated_at)
+		VALUES (?, true, ?, ?, ?);
 `)
 		if err != nil {
 			return -1, err
@@ -394,7 +394,7 @@ func InsertTask(db *sql.DB, summary string) (int, error) {
 		defer stmt.Close()
 
 		now := time.Now().UTC()
-		res, err := stmt.Exec(summary, now, now, syncID)
+		res, err := stmt.Exec(summary, syncID, now, now)
 		if err != nil {
 			return -1, err
 		}

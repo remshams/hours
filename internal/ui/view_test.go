@@ -433,6 +433,13 @@ func TestTerminalWidthResizingWorks(t *testing.T) {
 	snaps.MatchStandaloneSnapshot(t, result)
 }
 
+func TestCreateTestModelInitializesTaskSummaryInputWidth(t *testing.T) {
+	m := createTestModel()
+
+	assert.Len(t, m.taskInputs, 1)
+	assert.Equal(t, textInputWidth, m.taskInputs[summaryField].Width)
+}
+
 func createTestModel() Model {
 	defaultTheme := theme.Default()
 	style := NewStyle(defaultTheme)

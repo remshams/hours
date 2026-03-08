@@ -5,10 +5,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
+
+const syncServerStartupAttempts = 5
 
 func TestHoursServerBinarySupportsSeedBootstrapAcrossClients(t *testing.T) {
 	fx, err := cli.NewServerFixture()
@@ -79,41 +83,23 @@ func TestHoursServerBinaryProvidesHelp(t *testing.T) {
 
 func startSyncServer(t *testing.T, binPath string, serverDBPath string) string {
 	t.Helper()
-	listenAddr := reserveListenAddr(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	cmd := exec.CommandContext(ctx, binPath, "--dbpath", serverDBPath, "--listen", listenAddr)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	require.NoError(t, cmd.Start())
-	t.Cleanup(func() {
-		cancel()
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
+	var lastErr error
+	for attempt := 1; attempt <= syncServerStartupAttempts; attempt++ {
+		serverURL, retryable, err := startSyncServerAttempt(t, binPath, serverDBPath)
+		if err == nil {
+			return serverURL
 		}
-		waitErr := cmd.Wait()
-		if waitErr != nil && !errors.Is(waitErr, context.Canceled) {
-			var exitErr *exec.ExitError
-			if !errors.As(waitErr, &exitErr) || exitErr.ExitCode() != -1 {
-				t.Logf("sync server stdout:\n%s", stdout.String())
-				t.Logf("sync server stderr:\n%s", stderr.String())
-			}
-		}
-	})
 
-	serverURL := "http://" + listenAddr
-	require.Eventually(t, func() bool {
-		resp, err := http.Get(serverURL + syncpkg.HealthPath)
-		if err != nil {
-			return false
+		lastErr = err
+		if !retryable {
+			require.NoError(t, err)
 		}
-		defer resp.Body.Close()
-		return resp.StatusCode == http.StatusOK
-	}, 5*time.Second, 50*time.Millisecond, "sync server did not become healthy\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 
-	return serverURL
+		t.Logf("retrying sync server startup after listen race (%d/%d): %v", attempt, syncServerStartupAttempts, err)
+	}
+
+	require.NoError(t, lastErr)
+	return ""
 }
 
 func reserveListenAddr(t *testing.T) string {
@@ -122,6 +108,85 @@ func reserveListenAddr(t *testing.T) string {
 	require.NoError(t, err)
 	defer listener.Close()
 	return listener.Addr().String()
+}
+
+func startSyncServerAttempt(t *testing.T, binPath string, serverDBPath string) (string, bool, error) {
+	t.Helper()
+
+	listenAddr := reserveListenAddr(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, binPath, "--dbpath", serverDBPath, "--listen", listenAddr)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return "", false, err
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	serverURL := "http://" + listenAddr
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(5 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case waitErr := <-done:
+			cancel()
+			if isListenAddrInUse(waitErr, stderr.String()) {
+				return "", true, fmt.Errorf("listen address %s was claimed before the child bound it", listenAddr)
+			}
+			return "", false, fmt.Errorf("sync server exited before becoming healthy: %w\nstdout:\n%s\nstderr:\n%s", waitErr, stdout.String(), stderr.String())
+		case <-ticker.C:
+			resp, err := http.Get(serverURL + syncpkg.HealthPath)
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				t.Cleanup(func() {
+					cancel()
+					if cmd.Process != nil {
+						_ = cmd.Process.Kill()
+					}
+					waitErr := <-done
+					if waitErr != nil && !errors.Is(waitErr, context.Canceled) {
+						var exitErr *exec.ExitError
+						if !errors.As(waitErr, &exitErr) || exitErr.ExitCode() != -1 {
+							t.Logf("sync server stdout:\n%s", stdout.String())
+							t.Logf("sync server stderr:\n%s", stderr.String())
+						}
+					}
+				})
+				return serverURL, false, nil
+			}
+		case <-timeout.C:
+			cancel()
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			waitErr := <-done
+			if isListenAddrInUse(waitErr, stderr.String()) {
+				return "", true, fmt.Errorf("listen address %s was claimed before the child bound it", listenAddr)
+			}
+			return "", false, fmt.Errorf("sync server did not become healthy\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+		}
+	}
+}
+
+func isListenAddrInUse(waitErr error, stderr string) bool {
+	var exitErr *exec.ExitError
+	if !errors.As(waitErr, &exitErr) {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(stderr), "address already in use")
 }
 
 func newSyncClientDB(t *testing.T, path string) *sql.DB {

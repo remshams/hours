@@ -71,6 +71,26 @@ func TestHandleMsgSavedTLEditedSuccessQueuesSyncWhenEnabled(t *testing.T) {
 	assert.Equal(t, 1, calls)
 }
 
+func TestHandleMsgStaleTasksArchivedSuccessQueuesSyncWhenEnabled(t *testing.T) {
+	m := createTestModel()
+	m.db = setupSyncRuntimeTestDB(t)
+	m.syncConfig = SyncConfig{Enabled: true, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval}
+	var calls int
+	m.runSync = func(_ context.Context, _ *sql.DB, _ string) error {
+		calls++
+		return nil
+	}
+
+	cmds := m.handleMsg(staleTasksArchivedMsg{count: 3})
+	require.Len(t, cmds, 3)
+	require.NotNil(t, cmds[2])
+
+	msg := cmds[2]()
+	_, ok := msg.(syncCompletedMsg)
+	assert.True(t, ok)
+	assert.Equal(t, 1, calls)
+}
+
 func TestHandleTrackingToggledMsgStartSchedulesBackgroundSyncAndImmediateSync(t *testing.T) {
 	m := createTestModel()
 	m.db = setupSyncRuntimeTestDB(t)

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -17,8 +18,8 @@ type Fixture struct {
 }
 
 const (
-	clientBuildTarget = "github.com/dhth/hours/cmd/hours"
-	serverBuildTarget = "github.com/dhth/hours/cmd/hours-server"
+	clientBuildTarget = "./cmd/hours"
+	serverBuildTarget = "./cmd/hours-server"
 )
 
 type HoursCmd struct {
@@ -56,6 +57,11 @@ func NewServerFixture() (Fixture, error) {
 
 func buildFixture(binaryName string, buildTarget string) (Fixture, error) {
 	var zero Fixture
+	repoRoot, err := repoRootDir()
+	if err != nil {
+		return zero, err
+	}
+
 	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return zero, fmt.Errorf("couldn't create temporary directory: %s", err.Error())
@@ -67,6 +73,7 @@ func buildFixture(binaryName string, buildTarget string) (Fixture, error) {
 	buildCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	c := exec.CommandContext(buildCtx, "go", buildArgs...)
+	c.Dir = repoRoot
 	buildOutput, err := c.CombinedOutput()
 	if err != nil {
 		cleanupErr := os.RemoveAll(tempDir)
@@ -83,6 +90,20 @@ output:
 		tempDir: tempDir,
 		binPath: binPath,
 	}, nil
+}
+
+func repoRootDir() (string, error) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("couldn't determine fixture source path")
+	}
+
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", ".."))
+	if _, err := os.Stat(filepath.Join(repoRoot, "go.mod")); err != nil {
+		return "", fmt.Errorf("couldn't resolve repository root from fixture helper: %w", err)
+	}
+
+	return repoRoot, nil
 }
 
 func (f Fixture) Cleanup() error {

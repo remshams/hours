@@ -14,7 +14,7 @@ const syncRequestTimeout = 10 * time.Second
 
 type syncRunFunc func(context.Context, *sql.DB, string) error
 
-func (m Model) canRunSync() bool {
+func (m *Model) canRunSync() bool {
 	config := m.syncConfig.Sanitized()
 	if m.db == nil || m.runSync == nil || !config.Enabled {
 		return false
@@ -46,7 +46,7 @@ func (m *Model) requestSyncCmd() tea.Cmd {
 	return m.startSyncCmd()
 }
 
-func (m Model) scheduleBackgroundSyncCmd() tea.Cmd {
+func (m *Model) scheduleBackgroundSyncCmd() tea.Cmd {
 	if !m.trackingActive || !m.canRunSync() {
 		return nil
 	}

@@ -19,6 +19,7 @@ const (
 )
 
 var (
+	lookupUserHomeDir           = os.UserHomeDir
 	errCouldntGetHomeDir        = errors.New("couldn't get home directory")
 	ErrDBFileExtIncorrect       = errors.New("db file needs to end with .db")
 	errCouldntCreateDBDirectory = errors.New("couldn't create directory for database")
@@ -43,16 +44,17 @@ func Execute() error {
 }
 
 func NewRootCommand() (*cobra.Command, error) {
-	userHomeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %s", errCouldntGetHomeDir, err.Error())
+	userHomeDir, err := lookupUserHomeDir()
+	defaultDBPath := defaultDBName
+	if err == nil {
+		defaultDBPath = filepath.Join(userHomeDir, defaultDBName)
 	}
 
 	rootCmd := newServeCommand(
 		"hours-server",
 		"Run the hours HTTP sync server",
 		userHomeDir,
-		filepath.Join(userHomeDir, defaultDBName),
+		defaultDBPath,
 	)
 	rootCmd.Long = `Run the hours HTTP sync server.
 
@@ -87,7 +89,10 @@ func newServeCommand(use string, short string, userHomeDir string, defaultDBPath
 }
 
 func (o serveOptions) run() error {
-	dbPathFull := expandTilde(o.dbPath, o.userHomeDir)
+	dbPathFull, err := expandTilde(o.dbPath, o.userHomeDir)
+	if err != nil {
+		return err
+	}
 	if filepath.Ext(dbPathFull) != ".db" {
 		return ErrDBFileExtIncorrect
 	}
@@ -101,13 +106,16 @@ func (o serveOptions) run() error {
 	return ListenAndServe(o.listenAddr, db)
 }
 
-func expandTilde(path string, homeDir string) string {
+func expandTilde(path string, homeDir string) (string, error) {
 	pathWithoutTilde, found := strings.CutPrefix(path, "~/")
 	if !found {
-		return path
+		return path, nil
+	}
+	if homeDir == "" {
+		return "", errCouldntGetHomeDir
 	}
 
-	return filepath.Join(homeDir, pathWithoutTilde)
+	return filepath.Join(homeDir, pathWithoutTilde), nil
 }
 
 func setupDB(dbPathFull string) (*sql.DB, error) {
