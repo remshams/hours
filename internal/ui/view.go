@@ -89,8 +89,6 @@ func (m Model) View() string {
 	switch m.activeView {
 	case taskInputView:
 		formSubmitHelp = "Press <ctrl+s>/<enter> to submit"
-	case syncSettingsView:
-		formSubmitHelp = "Press <ctrl+s>/<enter> to save"
 	case editActiveTLView, finishActiveTLView, manualTasklogEntryView, editSavedTLView:
 		if submissionValidity != tlSubmitErr {
 			if m.trackingFocussedField == entryComment {
@@ -136,52 +134,6 @@ func (m Model) View() string {
 			m.style.formHelp.Render(formSubmitHelp),
 		)
 		for range m.terminalHeight - 9 {
-			content += "\n"
-		}
-	case syncSettingsView:
-		statusHeading, statusDetail, statusErr := m.syncStatusForDisplay()
-		statusStyle := m.style.tlFormOkStyle
-		if statusErr {
-			statusStyle = m.style.tlFormErrStyle
-		}
-
-		content = fmt.Sprintf(
-			`
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-
-	  %s
-	`,
-			m.style.taskEntryHeading.Render("Sync Settings"),
-			m.style.formContext.Render("Configure sync behavior for hours."),
-			m.style.formHelp.Render(formHelp),
-			m.style.formFieldName.Render("Enabled* (on/off)"),
-			m.syncInputs[syncEnabledField].View(),
-			m.style.formFieldName.Render("Server URL"),
-			m.syncInputs[syncServerURLField].View(),
-			m.style.formFieldName.Render("Sync Interval* (for example: 15m, 1h)"),
-			m.syncInputs[syncIntervalField].View(),
-			statusStyle.Render(fmt.Sprintf("%s\n%s", statusHeading, statusDetail)),
-			m.style.formHelp.Render(fmt.Sprintf("Settings file: %s\n%s", m.syncConfigPath, formSubmitHelp)),
-		)
-		for range m.terminalHeight - 25 {
 			content += "\n"
 		}
 	case finishActiveTLView:

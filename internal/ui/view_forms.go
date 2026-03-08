@@ -170,8 +170,6 @@ func (m *Model) handleEscapeInForms() {
 	case moveTaskLogView:
 		m.activeView = taskLogView
 		m.targetTasksList.ResetFilter()
-	case syncSettingsView:
-		m.activeView = m.lastView
 	}
 }
 
@@ -183,9 +181,6 @@ func (m *Model) goForwardInView() {
 		m.activeView = inactiveTaskListView
 	case inactiveTaskListView:
 		m.activeView = taskListView
-	case syncSettingsView:
-		next := (int(m.syncInputFocussedField) + 1) % len(m.syncInputs)
-		m.focusSyncInput(syncInputField(next))
 	case editActiveTLView:
 		switch m.trackingFocussedField {
 		case entryBeginTS:
@@ -223,12 +218,6 @@ func (m *Model) goBackwardInView() {
 		m.activeView = inactiveTaskListView
 	case inactiveTaskListView:
 		m.activeView = taskLogView
-	case syncSettingsView:
-		prev := int(m.syncInputFocussedField) - 1
-		if prev < 0 {
-			prev = len(m.syncInputs) - 1
-		}
-		m.focusSyncInput(syncInputField(prev))
 	case editActiveTLView:
 		switch m.trackingFocussedField {
 		case entryBeginTS:

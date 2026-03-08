@@ -69,8 +69,6 @@ func (m *Model) handleRequestToGoBackOrQuit() bool {
 		}
 	case helpView:
 		m.activeView = m.lastView
-	case syncSettingsView:
-		m.activeView = m.lastView
 	case moveTaskLogView:
 		m.activeView = taskLogView
 		m.targetTasksList.ResetFilter()

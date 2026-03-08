@@ -166,8 +166,8 @@ binary; it does not need the TUI client.
    hours-server --dbpath ~/hours-sync-server.db --listen 0.0.0.0:8787
    ```
 
-4. Keep using the `hours` client on each laptop/workstation and point **Sync
-   Settings** at `http://<server-host>:8787`.
+4. Keep using the `hours` client on each laptop/workstation and configure
+   `sync.json` to point at `http://<server-host>:8787`.
 
 If you are building directly on that host from this mono-repo checkout:
 
@@ -186,13 +186,14 @@ The supported setup looks like this:
 
 1. Pick one existing `hours` database as the seed instance.
 2. Start `hours-server` with a dedicated server-side `.db` file.
-3. In the seed instance, open the TUI, press `4` for **Sync Settings**, enable
-   sync, set the server URL (for example `http://127.0.0.1:8787`), choose an
-   interval such as `15m`, and save with `<ctrl+s>`.
+3. In the seed instance, create or edit `sync.json` in the `hours` config
+   directory (for example `$XDG_CONFIG_HOME/hours/sync.json` on Linux) with
+   sync enabled, the server URL (for example `http://127.0.0.1:8787`), and an
+   interval such as `15m`.
 4. Let that seed instance sync once to populate the shared server database.
 5. For every additional device or installation, start from a fresh/empty local
-   `hours` database, open **Sync Settings**, point it at the same server, and
-   save. Its first successful sync will pull down the shared history.
+   `hours` database, point its `sync.json` at the same server, and start the
+   client. Its first successful sync will pull down the shared history.
 
 #### What to expect in normal use
 
@@ -413,14 +414,13 @@ Here's a sampling of custom themes in action.
 📋 TUI Reference Manual
 ---
 
-`hours` has 8 views:
+`hours` has 7 views:
 
   - Tasks List View                       Shows active tasks
   - Task Management View                  Shows a form to create/update tasks
   - Task Logs List View                   Shows your task logs
   - Task Log Details View                 Shows details for a task log
   - Inactive Tasks List View              Shows inactive tasks
-  - Sync Settings View                    Shows a form to configure sync settings
   - Task Log Entry View                   Shows a form to save/update a task log entry
   - Help View
 
@@ -433,7 +433,6 @@ Here's a sampling of custom themes in action.
 | `1`           | Switch to Tasks List View          |
 | `2`           | Switch to Task Logs List View      |
 | `3`           | Switch to Inactive Tasks List View |
-| `4`           | Switch to Sync Settings View       |
 | `<tab>`       | Go to next view/form entry         |
 | `<shift+tab>` | Go to previous view/form entry     |
 | `q`/`<esc>`   | Go back or quit                    |
@@ -486,18 +485,6 @@ Here's a sampling of custom themes in action.
 | Shortcut   | Action        |
 |------------|---------------|
 | `<ctrl+d>` | Activate task |
-
-#### Sync Settings View
-
-| Shortcut           | Action                                       |
-|--------------------|----------------------------------------------|
-| `enter`/`<ctrl+s>` | Save sync settings                           |
-
-Field help:
-
-- `enabled` accepts `on/off`, `true/false`, `yes/no`, and `1/0`
-- `server URL` accepts `http://...` or `https://...`
-- `sync interval` accepts Go-style durations like `15m` or `1h`
 
 #### Task Log Entry View
 
