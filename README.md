@@ -160,6 +160,14 @@ binary; it does not need the TUI client.
 1. Put `hours-server` on the server host.
 2. Give it a dedicated server-side SQLite file such as
    `~/hours-sync-server.db`.
+
+   > Warning: The example below uses `--listen 0.0.0.0:8787`, so
+   > `hours-server` accepts network connections instead of staying on
+   > localhost, and it serves plain HTTP for the SQLite sync database at
+   > `--dbpath`. Because `hours-server` does not provide built-in
+   > authentication or TLS, this can expose your sync database to untrusted
+   > networks. Only do this on a trusted LAN, or put it behind TLS/auth
+   > proxying or an SSH tunnel.
 3. Run it on an address your clients can reach, for example:
 
    ```bash
@@ -414,7 +422,7 @@ Here's a sampling of custom themes in action.
 📋 TUI Reference Manual
 ---
 
-`hours` has 7 views:
+`hours` includes these TUI views:
 
   - Tasks List View                       Shows active tasks
   - Task Management View                  Shows a form to create/update tasks

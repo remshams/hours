@@ -6,7 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net"
+	"math/rand/v2"
 	"net/http"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +24,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const syncServerStartupAttempts = 5
+const (
+	syncServerStartupAttempts = 5
+	testListenPortMin         = 49152
+	testListenPortSpan        = 65535 - testListenPortMin + 1
+)
 
 func TestHoursServerBinarySupportsSeedBootstrapAcrossClients(t *testing.T) {
 	fx, err := cli.NewServerFixture()
@@ -95,25 +99,21 @@ func startSyncServer(t *testing.T, binPath string, serverDBPath string) string {
 			require.NoError(t, err)
 		}
 
-		t.Logf("retrying sync server startup after listen race (%d/%d): %v", attempt, syncServerStartupAttempts, err)
+		t.Logf("retrying sync server startup after listen address collision (%d/%d): %v", attempt, syncServerStartupAttempts, err)
 	}
 
 	require.NoError(t, lastErr)
 	return ""
 }
 
-func reserveListenAddr(t *testing.T) string {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer listener.Close()
-	return listener.Addr().String()
+func randomListenAddr() string {
+	return fmt.Sprintf("127.0.0.1:%d", testListenPortMin+rand.IntN(testListenPortSpan))
 }
 
 func startSyncServerAttempt(t *testing.T, binPath string, serverDBPath string) (string, bool, error) {
 	t.Helper()
 
-	listenAddr := reserveListenAddr(t)
+	listenAddr := randomListenAddr()
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, binPath, "--dbpath", serverDBPath, "--listen", listenAddr)
 	var stdout, stderr bytes.Buffer
@@ -140,7 +140,7 @@ func startSyncServerAttempt(t *testing.T, binPath string, serverDBPath string) (
 		case waitErr := <-done:
 			cancel()
 			if isListenAddrInUse(waitErr, stderr.String()) {
-				return "", true, fmt.Errorf("listen address %s was claimed before the child bound it", listenAddr)
+				return "", true, fmt.Errorf("listen address %s was already in use", listenAddr)
 			}
 			return "", false, fmt.Errorf("sync server exited before becoming healthy: %w\nstdout:\n%s\nstderr:\n%s", waitErr, stdout.String(), stderr.String())
 		case <-ticker.C:
@@ -173,7 +173,7 @@ func startSyncServerAttempt(t *testing.T, binPath string, serverDBPath string) (
 			}
 			waitErr := <-done
 			if isListenAddrInUse(waitErr, stderr.String()) {
-				return "", true, fmt.Errorf("listen address %s was claimed before the child bound it", listenAddr)
+				return "", true, fmt.Errorf("listen address %s was already in use", listenAddr)
 			}
 			return "", false, fmt.Errorf("sync server did not become healthy\nstdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 		}
