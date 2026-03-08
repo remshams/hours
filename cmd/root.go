@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	clientpkg "github.com/dhth/hours/internal/client"
 	c "github.com/dhth/hours/internal/common"
 	pers "github.com/dhth/hours/internal/persistence"
 	"github.com/dhth/hours/internal/types"
@@ -138,11 +139,14 @@ func NewRootCommand() (*cobra.Command, error) {
 		userHomeDir         string
 		userConfigDir       string
 		themesDir           string
+		syncConfigPath      string
 		dbPath              string
 		dbPathFull          string
 		db                  *sql.DB
 		themeName           string
 		style               ui.Style
+		syncConfig          ui.SyncConfig
+		syncConfigStatusErr string
 		reportAgg           bool
 		recordsInteractive  bool
 		recordsOutputPlain  bool
@@ -232,6 +236,8 @@ Sorry for breaking the upgrade step!
 			return err
 		}
 
+		syncConfig, syncConfigStatusErr = loadSyncConfig(syncConfigPath)
+
 		return nil
 	}
 
@@ -246,7 +252,18 @@ summary statistics for your tracked time.
 		SilenceUsage: true,
 		PreRunE:      preRun,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return ui.RenderUI(db, style, types.RealTimeProvider{})
+			return ui.RenderUI(
+				db,
+				style,
+				types.RealTimeProvider{},
+				syncConfig,
+				syncConfigStatusErr,
+				syncConfigPath,
+				func(config ui.SyncConfig) error {
+					return saveSyncConfig(syncConfigPath, config)
+				},
+				clientpkg.RunOnce,
+			)
 		},
 	}
 
@@ -369,6 +386,7 @@ You can choose to provide only the attributes you want to change.
 	}
 
 	themesDir = filepath.Join(userConfigDir, configDirName, themeDirName)
+	syncConfigPath = getSyncConfigPath(userConfigDir)
 
 	defaultDBPath := filepath.Join(userHomeDir, defaultDBName)
 

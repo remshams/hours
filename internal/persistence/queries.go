@@ -14,6 +14,7 @@ var (
 	ErrCouldntGetTaskLogDetails   = errors.New("db: couldn't get task log details")
 	ErrCouldntUpdateTaskTimeSpent = errors.New("db: couldn't update time spent on task")
 	ErrCouldntPrepareStatement    = errors.New("db: couldn't prepare sql statement")
+	ErrCouldntGenerateSyncID      = errors.New("db: couldn't generate sync id")
 	ErrCouldntFinishActiveTL      = errors.New("db: couldn't finish active task log")
 	ErrCouldntCreateTL            = errors.New("db: couldn't create new task log")
 	ErrNoTaskActive               = errors.New("db: no task is being actively tracked right now")
@@ -31,16 +32,22 @@ type QuickSwitchResult struct {
 
 func InsertNewTL(db *sql.DB, taskID int, beginTs time.Time) (int, error) {
 	return runInTxAndReturnID(db, func(tx *sql.Tx) (int, error) {
+		syncID, err := newSyncID()
+		if err != nil {
+			return -1, fmt.Errorf("%w: %s", ErrCouldntGenerateSyncID, err.Error())
+		}
+
+		now := time.Now().UTC()
 		stmt, err := tx.Prepare(`
-INSERT INTO task_log (task_id, begin_ts, active)
-VALUES (?, ?, ?);
+	INSERT INTO task_log (task_id, begin_ts, active, sync_id, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?);
 `)
 		if err != nil {
 			return -1, err
 		}
 		defer stmt.Close()
 
-		res, err := stmt.Exec(taskID, beginTs.UTC(), true)
+		res, err := stmt.Exec(taskID, beginTs.UTC(), true, syncID, now, now)
 		if err != nil {
 			return -1, err
 		}
@@ -58,7 +65,8 @@ func EditActiveTL(db *sql.DB, beginTs time.Time, comment *string) error {
 	stmt, err := db.Prepare(`
 UPDATE task_log
     SET begin_ts=?,
-    comment = ?
+	    comment = ?,
+	    updated_at = ?
 WHERE active is true;
 `)
 	if err != nil {
@@ -66,7 +74,7 @@ WHERE active is true;
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(beginTs.UTC(), comment)
+	_, err = stmt.Exec(beginTs.UTC(), comment, time.Now().UTC())
 	return err
 }
 
@@ -87,13 +95,15 @@ WHERE active=true;
 
 func FinishActiveTL(db *sql.DB, taskLogID int, taskID int, beginTs, endTs time.Time, secsSpent int, comment *string) error {
 	return runInTx(db, func(tx *sql.Tx) error {
+		now := time.Now().UTC()
 		stmt, err := tx.Prepare(`
 UPDATE task_log
 SET active = 0,
     begin_ts = ?,
     end_ts = ?,
     secs_spent = ?,
-    comment = ?
+	    comment = ?,
+	    updated_at = ?
 WHERE id = ?
 AND active = 1;
 `)
@@ -102,7 +112,7 @@ AND active = 1;
 		}
 		defer stmt.Close()
 
-		_, err = stmt.Exec(beginTs.UTC(), endTs.UTC(), secsSpent, comment, taskLogID)
+		_, err = stmt.Exec(beginTs.UTC(), endTs.UTC(), secsSpent, comment, now, taskLogID)
 		if err != nil {
 			return err
 		}
@@ -118,7 +128,7 @@ WHERE id = ?;
 		}
 		defer tStmt.Close()
 
-		_, err = tStmt.Exec(secsSpent, time.Now().UTC(), taskID)
+		_, err = tStmt.Exec(secsSpent, now, taskID)
 
 		return err
 	})
@@ -149,13 +159,15 @@ WHERE tl.active=true;
 		tsUTC := ts.UTC()
 
 		secsSpent := int(tsUTC.Sub(currentlyActiveTaskBeginTS).Seconds())
+		now := time.Now().UTC()
 
 		// finish currently active task log
 		tlUpdateStmt, err := tx.Prepare(`
 UPDATE task_log
 SET active = 0,
     end_ts = ?,
-    secs_spent =?
+	    secs_spent =?,
+	    updated_at = ?
 WHERE task_id = ?
 AND active = 1;
 `)
@@ -164,7 +176,7 @@ AND active = 1;
 		}
 		defer tlUpdateStmt.Close()
 
-		_, err = tlUpdateStmt.Exec(tsUTC, secsSpent, currentlyActiveTaskID)
+		_, err = tlUpdateStmt.Exec(tsUTC, secsSpent, now, currentlyActiveTaskID)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %s", ErrCouldntFinishActiveTL, err.Error())
 		}
@@ -181,22 +193,27 @@ WHERE id = ?;
 		}
 		defer tUpdateStmt.Close()
 
-		_, err = tUpdateStmt.Exec(secsSpent, time.Now().UTC(), currentlyActiveTaskID)
+		_, err = tUpdateStmt.Exec(secsSpent, now, currentlyActiveTaskID)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %s", ErrCouldntUpdateTaskTimeSpent, err.Error())
 		}
 
+		syncID, err := newSyncID()
+		if err != nil {
+			return zero, fmt.Errorf("%w: %s", ErrCouldntGenerateSyncID, err.Error())
+		}
+
 		// insert new task log
 		tlInsertStmt, err := tx.Prepare(`
-INSERT INTO task_log (task_id, begin_ts, active)
-VALUES (?, ?, ?);
+	INSERT INTO task_log (task_id, begin_ts, active, sync_id, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?);
 `)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %s", ErrCouldntPrepareStatement, err.Error())
 		}
 		defer tlInsertStmt.Close()
 
-		insertRes, err := tlInsertStmt.Exec(newActiveTaskID, tsUTC, true)
+		insertRes, err := tlInsertStmt.Exec(newActiveTaskID, tsUTC, true, syncID, now, now)
 		if err != nil {
 			return zero, fmt.Errorf("%w: %s", ErrCouldntCreateTL, err.Error())
 		}
@@ -212,9 +229,15 @@ VALUES (?, ?, ?);
 
 func InsertManualTL(db *sql.DB, taskID int, beginTs time.Time, endTs time.Time, comment *string) (int, error) {
 	return runInTxAndReturnID(db, func(tx *sql.Tx) (int, error) {
+		syncID, err := newSyncID()
+		if err != nil {
+			return -1, fmt.Errorf("%w: %s", ErrCouldntGenerateSyncID, err.Error())
+		}
+
+		now := time.Now().UTC()
 		stmt, err := tx.Prepare(`
-INSERT INTO task_log (task_id, begin_ts, end_ts, secs_spent, comment, active)
-VALUES (?, ?, ?, ?, ?, ?);
+	INSERT INTO task_log (task_id, begin_ts, end_ts, secs_spent, comment, active, sync_id, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 `)
 		if err != nil {
 			return -1, err
@@ -223,7 +246,7 @@ VALUES (?, ?, ?, ?, ?, ?);
 
 		secsSpent := int(endTs.Sub(beginTs).Seconds())
 
-		res, err := stmt.Exec(taskID, beginTs.UTC(), endTs.UTC(), secsSpent, comment, false)
+		res, err := stmt.Exec(taskID, beginTs.UTC(), endTs.UTC(), secsSpent, comment, false, syncID, now, now)
 		if err != nil {
 			return -1, err
 		}
@@ -244,7 +267,7 @@ WHERE id = ?;
 		}
 		defer tStmt.Close()
 
-		_, err = tStmt.Exec(secsSpent, time.Now().UTC(), taskID)
+		_, err = tStmt.Exec(secsSpent, now, taskID)
 		if err != nil {
 			return -1, err
 		}
@@ -284,7 +307,8 @@ UPDATE task_log
 SET begin_ts = ?,
     end_ts = ?,
     secs_spent = ?,
-    comment = ?
+	    comment = ?,
+	    updated_at = ?
 WHERE id=?;
 `)
 		if err != nil {
@@ -294,7 +318,8 @@ WHERE id=?;
 
 		secsSpent := int(endTs.Sub(beginTs).Seconds())
 
-		res, err := stmt.Exec(beginTs.UTC(), endTs.UTC(), secsSpent, comment, tlID)
+		now := time.Now().UTC()
+		res, err := stmt.Exec(beginTs.UTC(), endTs.UTC(), secsSpent, comment, now, tlID)
 		if err != nil {
 			return -1, err
 		}
@@ -319,7 +344,7 @@ WHERE id = ?;
 		}
 		defer tStmt.Close()
 
-		_, err = tStmt.Exec(secsSpent-previousSecsSpent, time.Now().UTC(), taskID)
+		_, err = tStmt.Exec(secsSpent-previousSecsSpent, now, taskID)
 		if err != nil {
 			return -1, fmt.Errorf("%w: %s", ErrCouldntUpdateTaskTimeSpent, err.Error())
 		}
@@ -354,9 +379,14 @@ WHERE tl.active=true;
 
 func InsertTask(db *sql.DB, summary string) (int, error) {
 	return runInTxAndReturnID(db, func(tx *sql.Tx) (int, error) {
+		syncID, err := newSyncID()
+		if err != nil {
+			return -1, fmt.Errorf("%w: %s", ErrCouldntGenerateSyncID, err.Error())
+		}
+
 		stmt, err := tx.Prepare(`
-INSERT into task (summary, active, created_at, updated_at)
-VALUES (?, true, ?, ?);
+	INSERT into task (summary, active, created_at, updated_at, sync_id)
+	VALUES (?, true, ?, ?, ?);
 `)
 		if err != nil {
 			return -1, err
@@ -364,7 +394,7 @@ VALUES (?, true, ?, ?);
 		defer stmt.Close()
 
 		now := time.Now().UTC()
-		res, err := stmt.Exec(summary, now, now)
+		res, err := stmt.Exec(summary, now, now, syncID)
 		if err != nil {
 			return -1, err
 		}
@@ -626,9 +656,11 @@ func MoveTaskLog(db *sql.DB, tlID int, oldTaskID int, newTaskID int, secsSpent i
 
 	return runInTx(db, func(tx *sql.Tx) error {
 		// Update the task_log entry's task_id
+		now := time.Now().UTC()
 		updateTLStmt, err := tx.Prepare(`
 UPDATE task_log
-SET task_id = ?
+	SET task_id = ?,
+	    updated_at = ?
 WHERE id = ? AND task_id = ?;
 `)
 		if err != nil {
@@ -636,7 +668,7 @@ WHERE id = ? AND task_id = ?;
 		}
 		defer updateTLStmt.Close()
 
-		result, err := updateTLStmt.Exec(newTaskID, tlID, oldTaskID)
+		result, err := updateTLStmt.Exec(newTaskID, now, tlID, oldTaskID)
 		if err != nil {
 			return err
 		}
@@ -649,13 +681,12 @@ WHERE id = ? AND task_id = ?;
 		}
 
 		// Decrease secs_spent on old task (atomic conditional update)
-		ts := time.Now().UTC()
 		oldTaskResult, err := tx.Exec(`
 UPDATE task
 SET secs_spent = secs_spent - ?,
     updated_at = ?
 WHERE id = ? AND secs_spent >= ?;
-`, secsSpent, ts, oldTaskID, secsSpent)
+	`, secsSpent, now, oldTaskID, secsSpent)
 		if err != nil {
 			return err
 		}
@@ -685,7 +716,7 @@ WHERE id = ?;
 		}
 		defer newTaskStmt.Close()
 
-		res, err := newTaskStmt.Exec(secsSpent, ts, newTaskID)
+		res, err := newTaskStmt.Exec(secsSpent, now, newTaskID)
 		if err != nil {
 			return err
 		}

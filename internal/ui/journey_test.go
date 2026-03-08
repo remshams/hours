@@ -40,7 +40,18 @@ func newJourneyTestHarness(t *testing.T) *journeyTestHarness {
 	// Initialize model with test time provider
 	defaultTheme := theme.Default()
 	style := NewStyle(defaultTheme)
-	m := InitialModel(db, style, timeProvider, false, logFramesConfig{}, nil)
+	m := InitialModel(
+		db,
+		style,
+		timeProvider,
+		false,
+		logFramesConfig{},
+		nil,
+		DefaultSyncConfig(),
+		"",
+		"testdata/sync.json",
+		nil,
+	)
 
 	// Set up minimum window size for proper initialization
 	msg := tea.WindowSizeMsg{

@@ -69,6 +69,8 @@ func (m *Model) handleRequestToGoBackOrQuit() bool {
 		}
 	case helpView:
 		m.activeView = m.lastView
+	case syncSettingsView:
+		m.activeView = m.lastView
 	case moveTaskLogView:
 		m.activeView = taskLogView
 		m.targetTasksList.ResetFilter()
@@ -229,6 +231,9 @@ func (m *Model) handleManualTLInsertedMsg(msg manualTLInsertedMsg) []tea.Cmd {
 		cmds = append(cmds, updateTaskRep(m.db, task))
 	}
 	cmds = append(cmds, fetchTLS(m.db, nil))
+	if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+		cmds = append(cmds, syncCmd)
+	}
 
 	return cmds
 }
@@ -246,6 +251,9 @@ func (m *Model) handleSavedTLEditedMsg(msg savedTLEditedMsg) []tea.Cmd {
 		cmds = append(cmds, updateTaskRep(m.db, task))
 	}
 	cmds = append(cmds, fetchTLS(m.db, &msg.tlID))
+	if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+		cmds = append(cmds, syncCmd)
+	}
 
 	return cmds
 }
@@ -277,15 +285,18 @@ func (m *Model) handleTLSFetchedMsg(msg tLsFetchedMsg) {
 	}
 }
 
-func (m *Model) handleActiveTaskFetchedMsg(msg activeTaskFetchedMsg) {
+func (m *Model) handleActiveTaskFetchedMsg(msg activeTaskFetchedMsg) tea.Cmd {
 	if msg.err != nil {
 		m.message = errMsg(msg.err.Error())
-		return
+		return nil
 	}
 
 	if msg.noneActive {
 		m.lastTrackingChange = trackingFinished
-		return
+		m.trackingActive = false
+		m.activeTaskID = -1
+		m.activeTLComment = nil
+		return nil
 	}
 
 	m.lastTrackingChange = trackingStarted
@@ -305,6 +316,8 @@ func (m *Model) handleActiveTaskFetchedMsg(msg activeTaskFetchedMsg) {
 		}
 	}
 	m.trackingActive = true
+
+	return m.scheduleBackgroundSyncCmd()
 }
 
 func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
@@ -353,6 +366,9 @@ func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
 				cmds = append(cmds, resumeCmd)
 			}
 		}
+		if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+			cmds = append(cmds, syncCmd)
+		}
 	case false:
 		m.autoStopTaskID = -1
 		m.autoResumeTaskID = -1
@@ -366,6 +382,12 @@ func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
 			m.autoResumeNoticePending = false
 			m.autoResumePauseDuration = 0
 		}
+		if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+			cmds = append(cmds, syncCmd)
+		}
+		if tickCmd := m.scheduleBackgroundSyncCmd(); tickCmd != nil {
+			cmds = append(cmds, tickCmd)
+		}
 	}
 
 	task.UpdateListTitle()
@@ -373,7 +395,7 @@ func (m *Model) handleTrackingToggledMsg(msg trackingToggledMsg) []tea.Cmd {
 	return cmds
 }
 
-func (m *Model) handleActiveTLSwitchedMsg(msg activeTLSwitchedMsg) tea.Cmd {
+func (m *Model) handleActiveTLSwitchedMsg(msg activeTLSwitchedMsg) []tea.Cmd {
 	if msg.err != nil {
 		m.message = errMsg(msg.err.Error())
 		return nil
@@ -407,7 +429,16 @@ func (m *Model) handleActiveTLSwitchedMsg(msg activeTLSwitchedMsg) tea.Cmd {
 	m.activeTaskID = msg.currentlyActiveTaskID
 	m.activeTLBeginTS = msg.ts
 
-	return fetchTLS(m.db, nil)
+	var cmds []tea.Cmd
+	cmds = append(cmds, fetchTLS(m.db, nil))
+	if syncCmd := m.requestSyncCmd(); syncCmd != nil {
+		cmds = append(cmds, syncCmd)
+	}
+	if tickCmd := m.scheduleBackgroundSyncCmd(); tickCmd != nil {
+		cmds = append(cmds, tickCmd)
+	}
+
+	return cmds
 }
 
 func (m *Model) handleTLDeleted(msg tLDeletedMsg) []tea.Cmd {

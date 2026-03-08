@@ -438,7 +438,18 @@ func createTestModel() Model {
 	style := NewStyle(defaultTheme)
 
 	testTimeProvider := types.TestTimeProvider{FixedTime: referenceTime}
-	m := InitialModel(nil, style, testTimeProvider, false, logFramesConfig{}, nil)
+	m := InitialModel(
+		nil,
+		style,
+		testTimeProvider,
+		false,
+		logFramesConfig{},
+		nil,
+		DefaultSyncConfig(),
+		"",
+		"testdata/sync.json",
+		nil,
+	)
 
 	msg := tea.WindowSizeMsg{
 		Width:  96,

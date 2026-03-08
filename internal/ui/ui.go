@@ -18,7 +18,16 @@ var (
 	errCouldnCreateFramesDir      = errors.New("couldn't create frames directory")
 )
 
-func RenderUI(db *sql.DB, style Style, timeProvider types.TimeProvider) error {
+func RenderUI(
+	db *sql.DB,
+	style Style,
+	timeProvider types.TimeProvider,
+	syncConfig SyncConfig,
+	syncConfigStatusErr string,
+	syncConfigPath string,
+	saveSyncConfig func(SyncConfig) error,
+	runSync syncRunFunc,
+) error {
 	if len(os.Getenv("DEBUG")) > 0 {
 		f, err := tea.LogToFile("debug.log", "debug")
 		if err != nil {
@@ -49,15 +58,21 @@ func RenderUI(db *sql.DB, style Style, timeProvider types.TimeProvider) error {
 		_ = sessionMonitor.Close()
 	}()
 
+	model := InitialModel(
+		db,
+		style,
+		timeProvider,
+		debug,
+		logFramesCfg,
+		sessionMonitor,
+		syncConfig,
+		syncConfigStatusErr,
+		syncConfigPath,
+		saveSyncConfig,
+	)
+	model.runSync = runSync
 	p := tea.NewProgram(
-		InitialModel(
-			db,
-			style,
-			timeProvider,
-			debug,
-			logFramesCfg,
-			sessionMonitor,
-		),
+		model,
 		tea.WithAltScreen(),
 	)
 	_, err := p.Run()

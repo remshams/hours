@@ -15,6 +15,13 @@ type sessionStateChangedMsg struct {
 	event session.Event
 }
 
+type syncTickMsg struct{}
+
+type syncCompletedMsg struct {
+	attemptedAt time.Time
+	err         error
+}
+
 type trackingToggledMsg struct {
 	taskID    int
 	finished  bool

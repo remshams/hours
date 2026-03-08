@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const latestDBVersion = 1 // only upgrade this after adding a migration in getMigrations
+const latestDBVersion = 2 // only upgrade this after adding a migration in getMigrations
 
 var (
 	ErrDBDowngraded          = errors.New("database downgraded")
@@ -26,10 +26,41 @@ func getMigrations() map[int]string {
 	// these migrations should not be modified once released.
 	// that is, migrations is an append-only map.
 
-	// migrations[2] = `
-	// ALTER TABLE task
-	// ADD COLUMN new_col TEXT;
-	// `
+	migrations[2] = `
+ALTER TABLE task
+ADD COLUMN sync_id TEXT;
+
+UPDATE task
+SET sync_id = lower(hex(randomblob(16)))
+WHERE sync_id IS NULL OR sync_id = '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_sync_id
+ON task(sync_id);
+
+ALTER TABLE task_log
+ADD COLUMN sync_id TEXT;
+
+ALTER TABLE task_log
+ADD COLUMN created_at TIMESTAMP;
+
+ALTER TABLE task_log
+ADD COLUMN updated_at TIMESTAMP;
+
+UPDATE task_log
+SET sync_id = lower(hex(randomblob(16)))
+WHERE sync_id IS NULL OR sync_id = '';
+
+UPDATE task_log
+SET created_at = begin_ts
+WHERE created_at IS NULL;
+
+UPDATE task_log
+SET updated_at = COALESCE(end_ts, begin_ts)
+WHERE updated_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_log_sync_id
+ON task_log(sync_id);
+`
 
 	return migrations
 }
@@ -97,13 +128,7 @@ func runMigration(db *sql.DB, migrateQuery string, version int) error {
 		_ = tx.Rollback()
 	}()
 
-	stmt, err := tx.Prepare(migrateQuery)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec()
+	_, err = tx.Exec(migrateQuery)
 	if err != nil {
 		return err
 	}
