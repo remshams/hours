@@ -11,11 +11,21 @@ import (
 )
 
 func TestGetSyncConfigPath(t *testing.T) {
-	assert.Equal(
-		t,
-		filepath.Join("/tmp/config", configDirName, syncConfigFileName),
-		getSyncConfigPath("/tmp/config"),
-	)
+	t.Run("darwin uses home dot config", func(t *testing.T) {
+		assert.Equal(
+			t,
+			filepath.Join("/tmp/home", macOSConfigParentDirName, configDirName, syncConfigFileName),
+			getSyncConfigPath("darwin", "/tmp/home", "/tmp/config"),
+		)
+	})
+
+	t.Run("non-darwin uses user config dir", func(t *testing.T) {
+		assert.Equal(
+			t,
+			filepath.Join("/tmp/config", configDirName, syncConfigFileName),
+			getSyncConfigPath("linux", "/tmp/home", "/tmp/config"),
+		)
+	})
 }
 
 func TestLoadSyncConfigReturnsDefaultWhenMissing(t *testing.T) {
