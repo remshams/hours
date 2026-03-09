@@ -16,8 +16,7 @@ plaintext reports, summary statistics, and logs based on time tracked.
 
 [Link to Video][2]
 
-🤔 Motivation
----
+## 🤔 Motivation
 
 For a while, I've been wanting to keep track of time I spend on side projects
 and other non-day-job activities. I also wanted to be able to generate plain
@@ -26,8 +25,7 @@ done via a fast command line tool that prioritised ease of use over
 fancy-but-ultimately-not-so-useful features. I couldn't find a tool that
 precisely fit these needs, so I decided to build one for myself.
 
-💾 Install
----
+## 💾 Install
 
 **homebrew (client binary)**:
 
@@ -101,8 +99,7 @@ go build -o ./dist/hours-server ./cmd/hours-server
 using the `HOURS_BIN` override when you want it to exercise a freshly built
 `hours` binary instead of one already on your `PATH`.
 
-⚡️ Usage
----
+## ⚡️ Usage
 
 > Newbie tip: If you want to see how `hours` works without having to track time,
 > you can have it generate dummy data for you. See [here](#generate-dummy-data)
@@ -168,6 +165,7 @@ binary; it does not need the TUI client.
    > authentication or TLS, this can expose your sync database to untrusted
    > networks. Only do this on a trusted LAN, or put it behind TLS/auth
    > proxying or an SSH tunnel.
+
 3. Run it on an address your clients can reach, for example:
 
    ```bash
@@ -194,10 +192,10 @@ The supported setup looks like this:
 
 1. Pick one existing `hours` database as the seed instance.
 2. Start `hours-server` with a dedicated server-side `.db` file.
-3. In the seed instance, create or edit `sync.json` in the `hours` config
-   directory (for example `$XDG_CONFIG_HOME/hours/sync.json` on Linux) with
-   sync enabled, the server URL (for example `http://127.0.0.1:8787`), and an
-   interval such as `15m`.
+3. In the seed instance, create or edit `sync.json` at the sync settings path
+   for your platform: `~/.config/hours/sync.json` on macOS, or for example
+   `$XDG_CONFIG_HOME/hours/sync.json` on Linux. Set sync enabled, the server
+   URL (for example `http://127.0.0.1:8787`), and an interval such as `15m`.
 4. Let that seed instance sync once to populate the shared server database.
 5. For every additional device or installation, start from a fresh/empty local
    `hours` database, point its `sync.json` at the same server, and start the
@@ -248,8 +246,8 @@ Accepts an argument, which can be one of the following:
     date       for a report for a specific date (eg. "2024/06/08")
     range      for a report for a date range (eg. "2024/06/08...2024/06/12", "2024/06/08...today", "2024/06/08..."; shouldn't be greater than 7 days)
 
-*Note: If a task log continues past midnight in your local timezone, it will be
-reported on the day it ends.*
+_Note: If a task log continues past midnight in your local timezone, it will be
+reported on the day it ends._
 
 ![Usage](https://tools.dhruvs.space/images/hours/report-1.png)
 
@@ -275,8 +273,8 @@ Accepts an argument, which can be one of the following:
     date       for log entries from a specific date (eg. "2024/06/08")
     range      for log entries for a date range (eg. "2024/06/08...2024/06/12", "2024/06/08...today", "2024/06/08...")
 
-*Note: If a task log continues past midnight in your local timezone, it'll
-appear in the log for the day it ends.*
+_Note: If a task log continues past midnight in your local timezone, it'll
+appear in the log for the day it ends._
 
 ![Usage](https://tools.dhruvs.space/images/hours/log-1.png)
 
@@ -284,7 +282,6 @@ Logs can also be viewed via an interactive interface using the
 `--interactive`/`-i` flag.
 
 ![Usage](https://tools.dhruvs.space/images/hours/log-interactive-1.gif)
-
 
 ### Statistics
 
@@ -304,8 +301,8 @@ Accepts an argument, which can be one of the following:
     range      show stats for a date range (eg. "2024/06/08...2024/06/12", "2024/06/08...today", "2024/06/08...")
     all        show stats for all log entries
 
-*Note: If a task log continues past midnight in your local timezone, it'll
-be considered in the stats for the day it ends.*
+_Note: If a task log continues past midnight in your local timezone, it'll
+be considered in the stats for the day it ends._
 
 ![Usage](https://tools.dhruvs.space/images/hours/stats-1.png)
 
@@ -340,8 +337,7 @@ do so using the `gen` subcommand.
 hours gen --dbpath=/var/tmp/throwaway.db
 ```
 
-🎨 Custom Themes
----
+## 🎨 Custom Themes
 
 `hours` supports custom themes for its user interface (for the TUI and the
 output of the `logs`, `report`, and `stats` commands. New themes can be added
@@ -410,7 +406,7 @@ pass the flag every time.
 Here's a sampling of custom themes in action.
 
 | Theme          | Preview                                                                                            |
-|----------------|----------------------------------------------------------------------------------------------------|
+| -------------- | -------------------------------------------------------------------------------------------------- |
 | Solarized Dark | ![solarized-dark](https://github.com/user-attachments/assets/f68c0863-c45f-41d9-be2a-395f768b43ea) |
 | Monokai        | ![monokai](https://github.com/user-attachments/assets/42e1ed59-b9be-42c3-953c-553bd94ff8e2)        |
 | Nord           | ![nord](https://github.com/user-attachments/assets/407d54f3-e48a-4c08-8688-f19058e4c373)           |
@@ -419,25 +415,24 @@ Here's a sampling of custom themes in action.
 | Catppuccin     | ![catppuccin](https://github.com/user-attachments/assets/2dfdd9ec-7a87-4d18-819f-f5135b77fb23)     |
 | Tokyonight     | ![tokyonight](https://github.com/user-attachments/assets/21ebe806-3159-4c5d-abbc-5405ef75087b)     |
 
-📋 TUI Reference Manual
----
+## 📋 TUI Reference Manual
 
 `hours` includes these TUI views:
 
-  - Tasks List View                       Shows active tasks
-  - Task Management View                  Shows a form to create/update tasks
-  - Task Logs List View                   Shows your task logs
-  - Task Log Details View                 Shows details for a task log
-  - Inactive Tasks List View              Shows inactive tasks
-  - Task Log Entry View                   Shows a form to save/update a task log entry
-  - Help View
+- Tasks List View Shows active tasks
+- Task Management View Shows a form to create/update tasks
+- Task Logs List View Shows your task logs
+- Task Log Details View Shows details for a task log
+- Inactive Tasks List View Shows inactive tasks
+- Task Log Entry View Shows a form to save/update a task log entry
+- Help View
 
 ### Keyboard Shortcuts
 
 #### General
 
 | Shortcut      | Action                             |
-|---------------|------------------------------------|
+| ------------- | ---------------------------------- |
 | `1`           | Switch to Tasks List View          |
 | `2`           | Switch to Task Logs List View      |
 | `3`           | Switch to Inactive Tasks List View |
@@ -450,7 +445,7 @@ Here's a sampling of custom themes in action.
 #### General List Controls
 
 | Shortcut      | Action              |
-|---------------|---------------------|
+| ------------- | ------------------- |
 | `k`/`<Up>`    | Move cursor up      |
 | `j`/`<Down>`  | Move cursor down    |
 | `h`/`<Left>`  | Go to previous page |
@@ -460,7 +455,7 @@ Here's a sampling of custom themes in action.
 #### Task List View
 
 | Shortcut   | Action                                                                                                                 |
-|------------|------------------------------------------------------------------------------------------------------------------------|
+| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `a`        | Add a task                                                                                                             |
 | `u`        | Update task details                                                                                                    |
 | `s`        | Start/stop recording time on a task; stopping will open up the "Task Log Entry View"                                   |
@@ -473,10 +468,10 @@ Here's a sampling of custom themes in action.
 
 #### Task Logs List View
 
-*Note: `~` at the end of a task log comment indicates that it has more lines that are not visible in the list view*
+_Note: `~` at the end of a task log comment indicates that it has more lines that are not visible in the list view_
 
 | Shortcut       | Action                |
-|----------------|-----------------------|
+| -------------- | --------------------- |
 | `d`            | Show task log details |
 | `<ctrl+s>`/`u` | Update task log entry |
 | `<ctrl+d>`     | Delete task log entry |
@@ -484,20 +479,20 @@ Here's a sampling of custom themes in action.
 #### Task Log Details View
 
 | Shortcut | Action               |
-|----------|----------------------|
+| -------- | -------------------- |
 | `h`      | Go to previous entry |
 | `l`      | Go to next entry     |
 
 #### Inactive Task List View
 
 | Shortcut   | Action        |
-|------------|---------------|
+| ---------- | ------------- |
 | `<ctrl+d>` | Activate task |
 
 #### Task Log Entry View
 
 | Shortcut           | Action                                   |
-|--------------------|------------------------------------------|
+| ------------------ | ---------------------------------------- |
 | `enter`/`<ctrl+s>` | Save entered details for the task log    |
 | `k`                | Move timestamp backwards by one minute   |
 | `j`                | Move timestamp forwards by one minute    |
@@ -506,8 +501,7 @@ Here's a sampling of custom themes in action.
 | `h`                | Move timestamp backwards by a day        |
 | `l`                | Move timestamp forwards by a day         |
 
-Acknowledgements
----
+## Acknowledgements
 
 `hours` is built using [bubbletea][1], and is released using [goreleaser][2],
 both of which are amazing tools.
