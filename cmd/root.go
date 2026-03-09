@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	clientpkg "github.com/dhth/hours/internal/client"
@@ -386,7 +387,7 @@ You can choose to provide only the attributes you want to change.
 	}
 
 	themesDir = filepath.Join(userConfigDir, configDirName, themeDirName)
-	syncConfigPath = getSyncConfigPath(userConfigDir)
+	syncConfigPath = getSyncConfigPath(runtime.GOOS, userHomeDir, userConfigDir)
 
 	defaultDBPath := filepath.Join(userHomeDir, defaultDBName)
 

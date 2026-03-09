@@ -7,9 +7,16 @@ import (
 	syncpkg "github.com/dhth/hours/internal/sync"
 )
 
-const syncConfigFileName = "sync.json"
+const (
+	syncConfigFileName       = "sync.json"
+	macOSConfigParentDirName = ".config"
+)
 
-func getSyncConfigPath(userConfigDir string) string {
+func getSyncConfigPath(goos, userHomeDir, userConfigDir string) string {
+	if goos == "darwin" {
+		return filepath.Join(userHomeDir, macOSConfigParentDirName, configDirName, syncConfigFileName)
+	}
+
 	return filepath.Join(userConfigDir, configDirName, syncConfigFileName)
 }
 
