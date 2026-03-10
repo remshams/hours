@@ -143,8 +143,9 @@ func TestThemeEnvVarPrecedence(t *testing.T) {
 			// Capture the error to check theme was resolved
 			err = preRunE(cmd, []string{})
 
-			// Assert the resolved theme equals the expected theme
-			resolvedTheme := GetThemeName()
+			// Assert the resolved theme via the command's bound flag value.
+			resolvedTheme, flagErr := cmd.Flags().GetString("theme")
+			require.NoError(t, flagErr)
 			assert.Equal(t, tt.expectedTheme, resolvedTheme, "resolved theme should match expected")
 
 			// If there was an error, it should be a theme-related error, not DB-related

@@ -19,7 +19,6 @@ const (
 )
 
 var (
-	lookupUserHomeDir           = os.UserHomeDir
 	errCouldntGetHomeDir        = errors.New("couldn't get home directory")
 	ErrDBFileExtIncorrect       = errors.New("db file needs to end with .db")
 	errCouldntCreateDBDirectory = errors.New("couldn't create directory for database")
@@ -27,6 +26,8 @@ var (
 	errCouldntInitializeDB      = errors.New("couldn't initialize database")
 	errCouldntOpenDB            = errors.New("couldn't open database")
 )
+
+type homeDirLookup func() (string, error)
 
 type serveOptions struct {
 	userHomeDir string
@@ -44,6 +45,10 @@ func Execute() error {
 }
 
 func NewRootCommand() (*cobra.Command, error) {
+	return newRootCommandWithHomeDirLookup(os.UserHomeDir)
+}
+
+func newRootCommandWithHomeDirLookup(lookupUserHomeDir homeDirLookup) (*cobra.Command, error) {
 	userHomeDir, err := lookupUserHomeDir()
 	defaultDBPath := defaultDBName
 	if err == nil {

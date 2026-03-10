@@ -20,19 +20,15 @@ func TestNewHandler_EncodeFailureDoesNotWritePartialResponse(t *testing.T) {
 	db := newServerTestDB(t)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
 
-	oldEncodePayload := encodePayload
-	encodePayload = func(w io.Writer, _ syncpkg.Payload) error {
+	handler := handlerWithEncoder(db, func(w io.Writer, _ syncpkg.Payload) error {
 		_, _ = io.WriteString(w, `{"partial":true}`)
 		return errors.New("encode failure")
-	}
-	t.Cleanup(func() {
-		encodePayload = oldEncodePayload
 	})
 
 	req := httptest.NewRequest(http.MethodPost, syncpkg.SyncEndpointPath, bytes.NewBufferString(`{"tasks":[],"taskLogs":[]}`))
 	resp := httptest.NewRecorder()
 
-	NewHandler(db).ServeHTTP(resp, req)
+	handler.ServeHTTP(resp, req)
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.NotContains(t, resp.Body.String(), `{"partial":true}`)

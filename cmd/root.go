@@ -55,15 +55,7 @@ var (
 	errCouldntMarshalTheme       = errors.New("couldn't marshal theme")
 
 	msgReportIssue = fmt.Sprintf("This isn't supposed to happen; let %s know about this error via \n%s.", c.Author, c.RepoIssuesURL)
-
-	// currentThemeName holds the resolved theme name after PreRunE
-	currentThemeName string
 )
-
-// GetThemeName returns the currently resolved theme name (for testing)
-func GetThemeName() string {
-	return currentThemeName
-}
 
 //go:embed static/show-theme-config-examples.txt
 var showThemeConfigExamples string
@@ -229,9 +221,6 @@ Sorry for breaking the upgrade step!
 		}
 
 		resolveThemeFromEnvOrFlag(cmd, &themeName, envVarTheme)
-
-		// Set the resolved theme name for testing purposes before getStyle
-		currentThemeName = themeName
 
 		if style, err = getStyle(themeName, themesDir); err != nil {
 			return err

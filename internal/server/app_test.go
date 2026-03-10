@@ -37,16 +37,10 @@ func TestNewRootCommand_InvalidDBExtension(t *testing.T) {
 	assert.ErrorIs(t, err, ErrDBFileExtIncorrect)
 }
 
-func TestNewRootCommand_AllowsHelpAndFlagParsingWithoutHomeDir(t *testing.T) {
-	oldLookupUserHomeDir := lookupUserHomeDir
-	lookupUserHomeDir = func() (string, error) {
+func TestNewRootCommandWithHomeDirLookup_AllowsHelpAndFlagParsingWithoutHomeDir(t *testing.T) {
+	cmd, err := newRootCommandWithHomeDirLookup(func() (string, error) {
 		return "", errors.New("home directory unavailable")
-	}
-	t.Cleanup(func() {
-		lookupUserHomeDir = oldLookupUserHomeDir
 	})
-
-	cmd, err := NewRootCommand()
 	require.NoError(t, err)
 
 	dbPath, err := cmd.Flags().GetString("dbpath")
