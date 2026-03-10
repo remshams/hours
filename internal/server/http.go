@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -11,9 +12,13 @@ import (
 	syncpkg "github.com/dhth/hours/internal/sync"
 )
 
-var encodePayload = syncpkg.EncodePayload
+type payloadEncoder func(io.Writer, syncpkg.Payload) error
 
 func NewHandler(db *sql.DB) http.Handler {
+	return handlerWithEncoder(db, syncpkg.EncodePayload)
+}
+
+func handlerWithEncoder(db *sql.DB, encodePayload payloadEncoder) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(syncpkg.HealthPath, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
