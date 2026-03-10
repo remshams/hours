@@ -150,6 +150,7 @@ type Model struct {
 	syncLastAttemptAt              time.Time
 	syncLastSuccessAt              time.Time
 	syncLastError                  string
+	checkSyncServerReachability    syncReachabilityFunc
 	runSync                        syncRunFunc
 	targetTasksList                list.Model
 	moveTLID                       int
@@ -171,6 +172,7 @@ func (m Model) Init() tea.Cmd {
 		fetchTLS(m.db, nil),
 		fetchTasks(m.db, false),
 		waitForSessionEvent(m.sessionMonitor),
+		m.startupSyncStatusCmd(),
 	)
 }
 

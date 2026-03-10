@@ -22,6 +22,10 @@ type syncCompletedMsg struct {
 	err         error
 }
 
+type startupSyncStatusMsg struct {
+	err error
+}
+
 type trackingToggledMsg struct {
 	taskID    int
 	finished  bool

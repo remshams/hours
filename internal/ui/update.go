@@ -504,6 +504,12 @@ func (m *Model) handleMsg(msg tea.Msg) []tea.Cmd {
 		}
 	case syncCompletedMsg:
 		cmds = append(cmds, m.handleSyncCompletedMsg(msg)...)
+	case startupSyncStatusMsg:
+		if msg.err != nil {
+			m.message = errMsg(syncServerUnreachableMsg)
+		} else {
+			m.message = infoMsg(syncServerReachableMsg)
+		}
 	case hideHelpMsg:
 		m.showHelpIndicator = false
 	}

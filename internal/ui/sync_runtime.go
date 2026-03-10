@@ -4,15 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	syncpkg "github.com/dhth/hours/internal/sync"
 )
 
-const syncRequestTimeout = 10 * time.Second
+const (
+	syncRequestTimeout       = 10 * time.Second
+	syncServerReachableMsg   = "Sync server reachable"
+	syncServerUnreachableMsg = "Sync server unreachable"
+)
 
 type syncRunFunc func(context.Context, *sql.DB, string) error
+
+type syncReachabilityFunc func(context.Context, string) error
 
 func (m *Model) canRunSync() bool {
 	config := m.syncConfig.Sanitized()
@@ -21,6 +29,20 @@ func (m *Model) canRunSync() bool {
 	}
 
 	return config.Validate() == nil
+}
+
+func (m Model) startupSyncStatusCmd() tea.Cmd {
+	config := m.syncConfig.Sanitized()
+	if !config.Enabled || config.Validate() != nil {
+		return nil
+	}
+
+	checkReachability := m.checkSyncServerReachability
+	if checkReachability == nil {
+		checkReachability = defaultCheckSyncServerReachability
+	}
+
+	return startupSyncStatusCheckCmd(config.ServerURL, checkReachability)
 }
 
 func (m *Model) startSyncCmd() tea.Cmd {
@@ -73,6 +95,42 @@ func syncNowCmd(db *sql.DB, serverURL string, runSync syncRunFunc) tea.Cmd {
 
 		return syncCompletedMsg{attemptedAt: attemptedAt, err: runSync(ctx, db, serverURL)}
 	}
+}
+
+func startupSyncStatusCheckCmd(serverURL string, checkReachability syncReachabilityFunc) tea.Cmd {
+	if strings.TrimSpace(serverURL) == "" {
+		return nil
+	}
+
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), syncRequestTimeout)
+		defer cancel()
+
+		return startupSyncStatusMsg{err: checkReachability(ctx, serverURL)}
+	}
+}
+
+func defaultCheckSyncServerReachability(ctx context.Context, serverURL string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, syncHealthURL(serverURL), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("sync server health check failed: %s", resp.Status)
+	}
+
+	return nil
+}
+
+func syncHealthURL(serverURL string) string {
+	return strings.TrimRight(strings.TrimSpace(serverURL), "/") + syncpkg.HealthPath
 }
 
 func (m *Model) handleSyncCompletedMsg(msg syncCompletedMsg) []tea.Cmd {
