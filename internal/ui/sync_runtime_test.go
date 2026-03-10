@@ -3,11 +3,115 @@ package ui
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStartupSyncStatusCmdSuccessShowsTransientBanner(t *testing.T) {
+	m := createTestModel()
+	m.checkSyncServerReachability = func(_ context.Context, serverURL string) error {
+		assert.Equal(t, "http://sync.example.com", serverURL)
+		return nil
+	}
+	m.syncConfig = SyncConfig{Enabled: true, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval}
+
+	cmd := m.startupSyncStatusCmd()
+	require.NotNil(t, cmd)
+
+	updated, _ := m.Update(cmd())
+	model := updated.(Model)
+	assert.Equal(t, userMsgInfo, model.message.kind)
+	assert.Equal(t, syncServerReachableMsg, model.message.value)
+	assert.Equal(t, uint(userMsgDefaultFrames), model.message.framesLeft)
+}
+
+func TestStartupSyncStatusCmdFailureShowsTransientBanner(t *testing.T) {
+	m := createTestModel()
+	m.checkSyncServerReachability = func(context.Context, string) error {
+		return errors.New("connection refused")
+	}
+	m.syncConfig = SyncConfig{Enabled: true, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval}
+
+	cmd := m.startupSyncStatusCmd()
+	require.NotNil(t, cmd)
+
+	updated, _ := m.Update(cmd())
+	model := updated.(Model)
+	assert.Equal(t, userMsgErr, model.message.kind)
+	assert.Equal(t, syncServerUnreachableMsg, model.message.value)
+	assert.Equal(t, uint(userMsgDefaultFrames), model.message.framesLeft)
+}
+
+func TestStartupSyncStatusCmdOnlyRunsWhenSyncEnabledAndValid(t *testing.T) {
+	testCases := []struct {
+		name   string
+		config SyncConfig
+		want   bool
+	}{
+		{
+			name:   "disabled sync",
+			config: SyncConfig{Enabled: false, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval},
+			want:   false,
+		},
+		{
+			name:   "invalid config",
+			config: SyncConfig{Enabled: true, ServerURL: "", Interval: defaultSyncInterval},
+			want:   false,
+		},
+		{
+			name:   "enabled valid config",
+			config: SyncConfig{Enabled: true, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval},
+			want:   true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			m := createTestModel()
+			m.syncConfig = tt.config
+
+			cmd := m.startupSyncStatusCmd()
+			if tt.want {
+				require.NotNil(t, cmd)
+				return
+			}
+
+			assert.Nil(t, cmd)
+		})
+	}
+}
+
+func TestInitDoesNotRunStartupSyncStatusCheckSynchronously(t *testing.T) {
+	called := make(chan struct{}, 1)
+	m := createTestModel()
+	m.checkSyncServerReachability = func(context.Context, string) error {
+		called <- struct{}{}
+		return nil
+	}
+	m.syncConfig = SyncConfig{Enabled: true, ServerURL: "http://sync.example.com", Interval: defaultSyncInterval}
+
+	done := make(chan tea.Cmd, 1)
+	go func() {
+		done <- m.Init()
+	}()
+
+	select {
+	case cmd := <-done:
+		require.NotNil(t, cmd)
+		select {
+		case <-called:
+			t.Fatal("startup sync status check ran during Init")
+		default:
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("Init blocked on startup sync status setup")
+	}
+}
 
 func TestHandleMsgTaskCreatedSuccessQueuesSyncWhenEnabled(t *testing.T) {
 	m := createTestModel()
