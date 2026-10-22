@@ -38,6 +38,12 @@ HOURS_BIN=/tmp/hours ./tests/test.sh
 golangci-lint run
 ```
 
+## CodeRabbit Reviews
+
+- CodeRabbit does not review pull requests automatically.
+- When the work on a PR is finished and pushed, comment `@coderabbitai review` once (`gh pr comment <n> --body "@coderabbitai review"`). Do not trigger a review after every push. Batch fixes and trigger once per round.
+- If CodeRabbit replies that the rate limit is exceeded, wait the stated time, then trigger the review again.
+
 ## Pull Request Descriptions
 
 When asked to provide a PR description, **do not create a markdown file**. Instead, output markdown-formatted text directly in the chat for copying into GitHub.
